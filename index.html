@@ -1,51 +1,566 @@
 <!DOCTYPE html>
-<html>
+<html lang="bs">
 <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>home</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://fonts.googleapis.com/css?family=Tauri&amp;subset=latin-ext" rel="stylesheet">
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css" integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
-    <link rel="stylesheet" type="text/css" media="screen" href="css/style.css" />
-    <script src="main.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa proizvodnje</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #eef1f3;
+    --panel: #ffffff;
+    --panel-2: #f4f6f8;
+    --border: #d7dde2;
+    --text: #1b2226;
+    --muted: #667079;
+    --steel: #2f6480;
+    --ok: #2f8f5b;
+    --warn: #c97f12;
+    --crit: #c23b35;
+    --hazard: #f4c430;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:16px;
+    border-bottom:2px solid var(--border);
+    padding-bottom:18px;
+    margin-bottom:28px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{
+    width:36px;height:36px;
+    background:repeating-linear-gradient(45deg, var(--hazard) 0 6px, var(--text) 6px 12px);
+    border-radius:4px;
+    flex-shrink:0;
+  }
+  h1{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:22px;
+    letter-spacing:0.5px;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .sub{color:var(--muted);font-size:13px;margin-top:2px;}
+  .stats{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;}
+  .stat{text-align:right;}
+  .stat .n{font-size:22px;font-weight:700;line-height:1;}
+  .stat .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+  .stat.crit .n{color:var(--crit);}
+  .stat.warn .n{color:var(--warn);}
+  .stat.ok .n{color:var(--ok);}
+  .backup-btns{display:flex;gap:6px;align-items:center;margin-left:6px;}
+  .mini-btn{
+    background:none;border:1px solid var(--border);color:var(--muted);
+    font-family:'Inter',sans-serif;font-size:11px;padding:6px 10px;
+    border-radius:5px;cursor:pointer;
+  }
+  .mini-btn:hover{color:var(--text);border-color:var(--steel);}
+
+  .flow-row{
+    display:flex;
+    gap:14px;
+    margin-bottom:14px;
+    position:relative;
+  }
+  .flow-row.reverse{flex-direction:row-reverse;}
+  .arrow{
+    align-self:center;
+    color:var(--border);
+    font-size:20px;
+    flex-shrink:0;
+  }
+  .flow-row.reverse .arrow{transform:scaleX(-1);}
+
+  .zone{
+    flex:1;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 14px 12px;
+    cursor:pointer;
+    position:relative;
+    transition:border-color .15s, transform .15s, background .15s;
+    min-width:0;
+  }
+  .zone:hover{border-color:var(--steel);transform:translateY(-2px);background:var(--panel-2);}
+  .zone-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .zone-code{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:17px;
+    letter-spacing:0.5px;
+  }
+  .led{width:9px;height:9px;border-radius:50%;margin-top:4px;flex-shrink:0;box-shadow:0 0 6px currentColor;}
+  .led.ok{background:var(--ok);color:var(--ok);}
+  .led.warn{background:var(--warn);color:var(--warn);}
+  .led.crit{background:var(--crit);color:var(--crit);}
+  .zone-name{
+    font-size:12px;color:var(--muted);
+    margin-top:4px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .zone-count{
+    margin-top:10px;
+    font-size:11px;
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--muted);
+  }
+  .zone-count b{color:var(--text);}
+
+  /* Overlay + drawer */
+  .overlay{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.55);
+    display:none;
+    z-index:50;
+  }
+  .overlay.open{display:block;}
+  .drawer{
+    position:fixed;top:0;right:0;height:100%;
+    width:420px;max-width:92vw;
+    background:var(--panel);
+    border-left:1px solid var(--border);
+    z-index:51;
+    display:flex;flex-direction:column;
+    transform:translateX(100%);
+    transition:transform .2s ease;
+  }
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{
+    padding:18px 20px;
+    border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .drawer-title-input{
+    background:none;border:none;color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;
+    width:100%;padding:2px 0;border-bottom:1px dashed transparent;
+  }
+  .drawer-title-input:focus{outline:none;border-bottom:1px dashed var(--steel);}
+  .close-btn{
+    background:none;border:1px solid var(--border);color:var(--muted);
+    width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;
+    flex-shrink:0;margin-left:10px;
+  }
+  .close-btn:hover{color:var(--text);border-color:var(--steel);}
+
+  .drawer-body{padding:16px 20px;overflow-y:auto;flex:1;}
+
+  .add-form{
+    display:flex;flex-direction:column;gap:8px;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:8px;padding:12px;
+    margin-bottom:18px;
+  }
+  .add-form input[type=text]{
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    border-radius:5px;padding:8px 10px;font-size:13px;font-family:'Inter',sans-serif;
+  }
+  .add-form input[type=text]:focus{outline:none;border-color:var(--steel);}
+  .row2{display:flex;gap:8px;}
+  select{
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    border-radius:5px;padding:8px 6px;font-size:12px;flex:1;font-family:'Inter',sans-serif;
+  }
+  .add-btn{
+    background:var(--steel);border:none;color:#0e1215;font-weight:600;
+    padding:9px;border-radius:5px;cursor:pointer;font-size:13px;
+    font-family:'Inter',sans-serif;
+  }
+  .add-btn:hover{background:#5a8fac;}
+
+  .item{
+    display:flex;align-items:flex-start;gap:10px;
+    padding:10px 8px;
+    border-bottom:1px solid var(--border);
+  }
+  .item.done{opacity:0.45;}
+  .item.done .item-text{text-decoration:line-through;}
+  .checkbox{
+    width:18px;height:18px;border-radius:4px;border:1px solid var(--border);
+    background:var(--bg);cursor:pointer;flex-shrink:0;margin-top:2px;
+    display:flex;align-items:center;justify-content:center;color:var(--ok);font-size:12px;
+  }
+  .item-mid{flex:1;min-width:0;}
+  .item-text{font-size:13.5px;line-height:1.4;word-break:break-word;}
+  .tags{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;}
+  .tag{
+    font-size:10px;font-family:'IBM Plex Mono',monospace;
+    padding:2px 7px;border-radius:20px;letter-spacing:0.3px;text-transform:uppercase;
+  }
+  .tag.tip-zamjena{background:rgba(232,163,61,.15);color:var(--warn);}
+  .tag.tip-popravka{background:rgba(74,124,150,.18);color:var(--steel);}
+  .tag.tip-provjera{background:rgba(69,168,119,.15);color:var(--ok);}
+  .tag.prio-visok{background:rgba(224,85,79,.18);color:var(--crit);}
+  .tag.prio-srednji{background:rgba(232,163,61,.15);color:var(--warn);}
+  .tag.prio-nizak{background:rgba(139,146,153,.15);color:var(--muted);}
+  .del-btn{
+    background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;
+    padding:2px 4px;flex-shrink:0;
+  }
+  .del-btn:hover{color:var(--crit);}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:30px 10px;}
+
+  .save-note{
+    font-size:11px;color:var(--muted);text-align:center;padding-top:8px;
+  }
+
+  @media (max-width:720px){
+    .flow-row, .flow-row.reverse{flex-direction:column;}
+    .arrow{display:none;}
+    .stats{gap:12px;}
+  }
+</style>
 </head>
 <body>
-    
-        <div id="wrapper"> <!--pocetak wrappera-->
-            <div id="vertical"> <!--pocetak vertical-->
-                <div id="socialIcons">
-                    <ul class="social">
-                        <li><a href="https://www.facebook.com/zlatko.gusic.39"><i class="fab fa-facebook-square"></i></a></li>
-                        <li><a href="https://www.instagram.com/mr.gusic/"><i class="fab fa-instagram"></i></a></li>
-                        <li><a href="https://plus.google.com/+zlajaIc"><i class="fab fa-google-plus-square"></i></a></li>
-                        <li><a href="https://www.linkedin.com/in/zlatko-gusic-185b61173/"><i class="fab fa-linkedin"></i></a></li>
-                        
-                        
-                    </ul>
-                </div>  <!--kraj vertical-->
 
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <h1>Mapa proizvodnje</h1>
+        <div class="sub">Klikni na zonu da otvoriš check listu</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat crit"><div class="n" id="stat-crit">0</div><div class="l">Visok prioritet</div></div>
+      <div class="stat warn"><div class="n" id="stat-open">0</div><div class="l">Otvoreno</div></div>
+      <div class="stat ok"><div class="n" id="stat-done">0</div><div class="l">Riješeno</div></div>
+      <div class="backup-btns">
+        <button class="mini-btn" id="export-btn" title="Sačuvaj sve podatke u JSON fajl">Izvoz</button>
+        <button class="mini-btn" id="import-btn" title="Učitaj podatke iz JSON fajla">Uvoz</button>
+        <input type="file" id="import-file" accept="application/json" style="display:none;">
+      </div>
+    </div>
+  </header>
 
-            </div>
-            <div id="slikatext"> <!--pocetak slikatext-->
-                <div id="slika"> <!--pocetak slika -->
-                <img src="img/ja1.jpg" alt="ZlatkoGusic">
-                </div> <!--kraj slika-->
-                <p>Ja sam <span class=tekst>Zlatko Gusic</span>.Zavrsio sam
-                    <span class=tekst>ITakademiju</span> smjer <span class=tekst>PHP developer</span>.
-                    Skolovao sam se za rad u <span class=tekst>PHP,JS,HTML i CSS</span>.
-                    Svaki dan nastojim da <span class=tekst>naucim</span> nesto novo i da aktivno istrazujem nove stvari u svom podrucju interesovanja.
-                    <span class=tekst>Radujem se</span> novim izazovima i <span class=tekst>poslovnim </span>prilikama.
-                </p>
-                    <p>Mozete me kontaktirarti na <span class=tekst>gusic.webdev@gmail.com</span></p>
-                <div id="text"> <!--pocetak text-->
-                    
-                </div> <!--kraj text-->
-            </div> <!--kraj slikatext-->
-            
-            
-        </div> <!--kraj wrappera-->
+  <div id="grid"></div>
+  <div class="save-note" id="save-note"></div>
+</div>
 
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <input class="drawer-title-input" id="drawer-title" type="text" spellcheck="false">
+    <button class="close-btn" id="close-btn">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="add-form">
+      <input type="text" id="new-item-text" placeholder="Šta je potrebno uraditi... (npr. zamijeniti senzor)">
+      <div class="row2">
+        <select id="new-item-tip">
+          <option value="popravka">Popravka</option>
+          <option value="zamjena">Zamjena</option>
+          <option value="provjera">Provjera</option>
+        </select>
+        <select id="new-item-prio">
+          <option value="nizak">Nizak prioritet</option>
+          <option value="srednji" selected>Srednji prioritet</option>
+          <option value="visok">Visok prioritet</option>
+        </select>
+      </div>
+      <button class="add-btn" id="add-btn">+ Dodaj stavku</button>
+    </div>
+    <div id="item-list"></div>
+  </div>
+</div>
+
+<script>
+const ZONE_COUNT = 14;
+const STORAGE_KEY = 'production-map-data';
+let state = null;
+let currentZone = null;
+
+const PRESET_NAMES = {
+  L1: 'FAAR WE',
+  L2: 'FAAR WE',
+  L3: 'FAAR WE',
+  L4: 'F7X',
+  L5: 'NB5 2W',
+  L6: 'NCAR/FAAR WE',
+  L7: 'INEOS/VANEA 2W',
+  L8: 'MBEAM/CKD',
+  L9: 'NCAR 4W',
+  L10: 'MSP',
+  L11: 'VAN EA MODUL',
+  L12: 'PF',
+  L13: 'VANEA 4W',
+  L14: 'NB5 4W'
+};
+
+function defaultState(){
+  const zones = {};
+  for(let i=1;i<=ZONE_COUNT;i++){
+    const key = 'L'+i;
+    zones[key] = { name: PRESET_NAMES[key] || key, items: [] };
+  }
+  return { zones };
+}
+
+async function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      state = JSON.parse(raw);
+      // ensure all zones exist, and fill in preset names for zones that were never renamed
+      for(let i=1;i<=ZONE_COUNT;i++){
+        const key = 'L'+i;
+        if(!state.zones[key]){
+          state.zones[key] = { name: PRESET_NAMES[key] || key, items: [] };
+        }else if(state.zones[key].name === key && PRESET_NAMES[key]){
+          state.zones[key].name = PRESET_NAMES[key];
+        }
+      }
+      return;
+    }
+  }catch(e){ /* no data yet or storage unavailable */ }
+  state = defaultState();
+}
+
+async function saveState(){
+  const note = document.getElementById('save-note');
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    note.textContent = 'Sačuvano';
+    setTimeout(()=>{ if(note.textContent==='Sačuvano') note.textContent=''; }, 1200);
+  }catch(e){
+    note.textContent = 'Greška pri čuvanju — koristi Izvoz da sačuvaš podatke ručno';
+  }
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `mapa-proizvodnje-backup-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.zones) throw new Error('invalid');
+      for(let i=1;i<=ZONE_COUNT;i++){
+        const key = 'L'+i;
+        if(!parsed.zones[key]) parsed.zones[key] = { name: PRESET_NAMES[key] || key, items: [] };
+      }
+      state = parsed;
+      renderGrid();
+      saveState();
+      document.getElementById('save-note').textContent = 'Podaci uvezeni';
+    }catch(err){
+      document.getElementById('save-note').textContent = 'Neispravan fajl za uvoz';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function zoneStatus(zone){
+  const open = zone.items.filter(i=>!i.done);
+  if(open.length===0) return 'ok';
+  if(open.some(i=>i.priority==='visok')) return 'crit';
+  return 'warn';
+}
+
+function renderStats(){
+  let crit=0, open=0, done=0;
+  Object.values(state.zones).forEach(z=>{
+    z.items.forEach(i=>{
+      if(i.done) done++;
+      else{
+        open++;
+        if(i.priority==='visok') crit++;
+      }
+    });
+  });
+  document.getElementById('stat-crit').textContent = crit;
+  document.getElementById('stat-open').textContent = open;
+  document.getElementById('stat-done').textContent = done;
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const order = [];
+  for(let i=1;i<=ZONE_COUNT;i++) order.push('L'+i);
+
+  // snake layout: rows of 5, alternating direction, like a production line
+  const rows = [];
+  for(let i=0;i<order.length;i+=5){
+    rows.push(order.slice(i,i+5));
+  }
+
+  rows.forEach((rowKeys, rowIdx)=>{
+    const rowEl = document.createElement('div');
+    rowEl.className = 'flow-row' + (rowIdx % 2 === 1 ? ' reverse' : '');
+    rowKeys.forEach((key, idx)=>{
+      const zone = state.zones[key];
+      const st = zoneStatus(zone);
+      const openCount = zone.items.filter(i=>!i.done).length;
+      const zoneEl = document.createElement('div');
+      zoneEl.className = 'zone';
+      zoneEl.innerHTML = `
+        <div class="zone-top">
+          <div class="zone-code">${key}</div>
+          <div class="led ${st}"></div>
+        </div>
+        <div class="zone-name">${escapeHtml(zone.name === key ? 'Bez naziva' : zone.name)}</div>
+        <div class="zone-count"><b>${openCount}</b> otvoreno / ${zone.items.length} ukupno</div>
+      `;
+      zoneEl.addEventListener('click', ()=>openDrawer(key));
+      rowEl.appendChild(zoneEl);
+      if(idx < rowKeys.length-1){
+        const arrow = document.createElement('div');
+        arrow.className = 'arrow';
+        arrow.textContent = '→';
+        rowEl.appendChild(arrow);
+      }
+    });
+    grid.appendChild(rowEl);
+  });
+
+  renderStats();
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function openDrawer(key){
+  currentZone = key;
+  document.getElementById('drawer-title').value = state.zones[key].name;
+  renderItems();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('new-item-text').focus();
+}
+
+function closeDrawer(){
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+  currentZone = null;
+  renderGrid();
+}
+
+function renderItems(){
+  const list = document.getElementById('item-list');
+  const zone = state.zones[currentZone];
+  if(zone.items.length === 0){
+    list.innerHTML = '<div class="empty">Nema stavki. Dodaj prvu iznad.</div>';
+    return;
+  }
+  // open items first, then done
+  const sorted = [...zone.items].sort((a,b)=> (a.done===b.done)?0:(a.done?1:-1));
+  list.innerHTML = '';
+  sorted.forEach(item=>{
+    const el = document.createElement('div');
+    el.className = 'item' + (item.done ? ' done' : '');
+    el.innerHTML = `
+      <div class="checkbox" data-id="${item.id}">${item.done ? '✓' : ''}</div>
+      <div class="item-mid">
+        <div class="item-text">${escapeHtml(item.text)}</div>
+        <div class="tags">
+          <span class="tag tip-${item.type}">${item.type}</span>
+          <span class="tag prio-${item.priority}">${item.priority}</span>
+        </div>
+      </div>
+      <button class="del-btn" data-id="${item.id}">✕</button>
+    `;
+    list.appendChild(el);
+  });
+
+  list.querySelectorAll('.checkbox').forEach(cb=>{
+    cb.addEventListener('click', ()=>toggleItem(cb.dataset.id));
+  });
+  list.querySelectorAll('.del-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>deleteItem(btn.dataset.id));
+  });
+}
+
+function toggleItem(id){
+  const zone = state.zones[currentZone];
+  const item = zone.items.find(i=>i.id===id);
+  if(item){
+    item.done = !item.done;
+    renderItems();
+    saveState();
+  }
+}
+
+function deleteItem(id){
+  const zone = state.zones[currentZone];
+  zone.items = zone.items.filter(i=>i.id!==id);
+  renderItems();
+  saveState();
+}
+
+function addItem(){
+  const textInput = document.getElementById('new-item-text');
+  const text = textInput.value.trim();
+  if(!text) return;
+  const type = document.getElementById('new-item-tip').value;
+  const priority = document.getElementById('new-item-prio').value;
+  const zone = state.zones[currentZone];
+  zone.items.push({
+    id: 'i' + Date.now() + Math.random().toString(36).slice(2,7),
+    text, type, priority, done:false
+  });
+  textInput.value = '';
+  renderItems();
+  saveState();
+  textInput.focus();
+}
+
+document.getElementById('add-btn').addEventListener('click', addItem);
+document.getElementById('new-item-text').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') addItem();
+});
+document.getElementById('close-btn').addEventListener('click', closeDrawer);
+document.getElementById('overlay').addEventListener('click', closeDrawer);
+document.getElementById('drawer-title').addEventListener('input', e=>{
+  state.zones[currentZone].name = e.target.value || currentZone;
+});
+document.getElementById('drawer-title').addEventListener('blur', ()=>{
+  saveState();
+});
+
+document.getElementById('export-btn').addEventListener('click', exportData);
+document.getElementById('import-btn').addEventListener('click', ()=>{
+  document.getElementById('import-file').click();
+});
+document.getElementById('import-file').addEventListener('change', (e)=>{
+  if(e.target.files[0]) importData(e.target.files[0]);
+  e.target.value = '';
+});
+
+(async function init(){
+  await loadState();
+  renderGrid();
+})();
+</script>
 
 </body>
 </html>
