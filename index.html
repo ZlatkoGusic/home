@@ -21,6 +21,7 @@
     --hazard: #f4c430;
   }
   *{box-sizing:border-box;}
+  html,body{overflow-x:hidden;}
   body{
     margin:0;
     background:var(--bg);
@@ -130,7 +131,7 @@
   }
   .overlay.open{display:block;}
   .drawer{
-    position:fixed;top:0;right:0;height:100%;
+    position:fixed;top:0;right:0;height:100vh;height:100dvh;
     width:420px;max-width:92vw;
     background:var(--panel);
     border-left:1px solid var(--border);
@@ -221,9 +222,33 @@
   }
 
   @media (max-width:720px){
+    .wrap{padding:18px 14px 40px;}
+    header{align-items:flex-start;padding-bottom:14px;margin-bottom:20px;}
+    h1{font-size:18px;}
     .flow-row, .flow-row.reverse{flex-direction:column;}
     .arrow{display:none;}
-    .stats{gap:12px;}
+    .stats{gap:14px;width:100%;justify-content:space-between;flex-wrap:wrap;}
+    .stat .n{font-size:18px;}
+    .backup-btns{width:100%;margin-left:0;margin-top:10px;}
+    .mini-btn{flex:1;padding:9px 6px;font-size:12px;}
+    .zone{padding:16px 14px;}
+    .zone-code{font-size:16px;}
+    .drawer{width:100%;max-width:100%;}
+    .drawer-head{padding:14px 16px;}
+    .drawer-title-input{font-size:16px;}
+    .drawer-body{padding:14px 16px;}
+    .row2{flex-direction:column;}
+    select{width:100%;padding:11px 10px;font-size:14px;}
+    .add-form input[type=text]{padding:11px 12px;font-size:14px;}
+    .add-btn{padding:12px;font-size:14px;}
+    .checkbox{width:24px;height:24px;font-size:14px;}
+    .del-btn{font-size:19px;padding:4px 8px;}
+    .item{padding:12px 6px;}
+    .close-btn{width:36px;height:36px;font-size:18px;}
+  }
+
+  @media (max-width:400px){
+    .stats{flex-wrap:wrap;}
   }
 </style>
 </head>
