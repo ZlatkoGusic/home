@@ -658,16 +658,24 @@ document.getElementById('import-file').addEventListener('change', (e)=>{
   e.target.value = '';
 });
 
-const CORRECT_PIN = '5454';
+const PIN_SALT = 'mapa-proizvodnje-';
+const CORRECT_PIN_HASH = 'ae98d1326521958e8fbf3de8df2c133c4866d617d257d9a9e201a60afe759850';
 let enteredPin = '';
+
+async function sha256Hex(str){
+  const data = new TextEncoder().encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
 function updatePinDots(){
   const dots = document.getElementById('pin-dots');
   dots.className = 'pin-dots' + (enteredPin.length ? ' filled-'+enteredPin.length : '');
 }
 
-function checkPin(){
-  if(enteredPin === CORRECT_PIN){
+async function checkPin(){
+  const hash = await sha256Hex(PIN_SALT + enteredPin);
+  if(hash === CORRECT_PIN_HASH){
     document.getElementById('lock-screen').classList.add('hidden');
     const app = document.getElementById('app');
     app.classList.remove('app-hidden');
