@@ -47,34 +47,46 @@
         }
 
         select {
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid #cbd5e1;
-            background-color: #ffffff;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #0f172a;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #1e293b;
             outline: none;
             cursor: pointer;
             flex-grow: 1;
+            appearance: none; 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="%2364748b" viewBox="0 0 16 16"><path d="M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 40px;
+            transition: all 0.2s ease;
         }
+        select:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+        select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
 
         .btn-location {
-            background-color: #2563eb;
-            color: white;
-            border: none;
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-weight: 700;
+            background-color: #f8fafc;
+            color: #2563eb;
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 1.2rem;
             cursor: pointer;
-            font-size: 0.9rem;
             display: flex;
             align-items: center;
-            gap: 5px;
-            transition: background 0.2s;
-            white-space: nowrap;
+            justify-content: center;
+            transition: all 0.2s ease;
+            width: 46px; 
+            height: 46px;
         }
-        .btn-location:hover { background-color: #1d4ed8; }
+        .btn-location:hover { 
+            background-color: #eff6ff; 
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
 
         .source-tag {
             font-size: 0.75rem;
@@ -115,42 +127,71 @@
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
-        .sun-chart-wrapper {
-            position: relative;
-            width: 100%;
-            height: 90px;
+        
+        .big-temp-display {
+            font-size: 2.8rem;
+            font-weight: 900;
+            color: #0f172a;
+            margin: 4px 0 12px 0;
             display: flex;
+            align-items: center;
             justify-content: center;
-            align-items: flex-end;
-            overflow: hidden;
+            gap: 8px;
         }
-        .sun-arc {
-            width: 220px;
-            height: 220px;
-            border-radius: 50%;
-            border: 2px dashed #cbd5e1;
-            position: absolute;
-            top: 10px;
+
+        .sun-path-wrapper {
+            width: 100%;
+            margin: 6px 0 4px 0;
         }
-        .sun-node {
-            width: 18px;
-            height: 18px;
-            background-color: #f59e0b;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
-            border-radius: 50%;
-            position: absolute;
-            transform: translate(-50%, -50%);
-            transition: all 0.4s ease;
-            z-index: 2;
+        .sun-path-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+            overflow: visible;
         }
+        .sun-arc-day {
+            fill: none;
+            stroke: #fbbf24;
+            stroke-width: 2;
+            stroke-dasharray: 4 5;
+            opacity: 0.7;
+        }
+        .sun-arc-night {
+            fill: none;
+            stroke: #94a3b8;
+            stroke-width: 2;
+            stroke-dasharray: 3 5;
+            opacity: 0.45;
+        }
+        .horizon-line {
+            stroke: #cbd5e1;
+            stroke-width: 2;
+        }
+        .sun-path-marker {
+            transition: transform 0.5s ease, opacity 0.3s ease;
+        }
+        .sun-path-endpoint-label {
+            font-size: 10px;
+            font-weight: 700;
+            fill: #94a3b8;
+        }
+        .sun-path-status {
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #475569;
+            margin-top: 2px;
+        }
+
         .sun-times {
             display: flex;
             justify-content: space-between;
             margin-top: 8px;
             padding: 0 10px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 10px;
         }
         .sun-time-box {
             display: flex;
@@ -193,6 +234,34 @@
             font-weight: 700;
             color: #1e293b;
             line-height: 1.45;
+        }
+
+        /* Stil za ozbiljno meteo upozorenje (nije sala) */
+        .meteo-alert-box {
+            margin-top: 12px;
+            padding: 12px;
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            text-align: left;
+            display: none; /* Prikazuje se samo kad ima upozorenja */
+        }
+        .alert-header {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: #dc2626;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .alert-text {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #991b1b;
+            line-height: 1.4;
         }
 
         .picker-label {
@@ -378,7 +447,7 @@
                     <option value="43.8333,17.3000">Livno</option>
                     <option value="43.9389,17.6658">Travnik</option>
                 </select>
-                <button class="btn-location" onclick="dajMojaLokacija()" title="Moja Lokacija">📍 Lokacija</button>
+                <button class="btn-location" onclick="dajMojaLokacija()" title="Učitaj moju trenutnu lokaciju">📍</button>
             </div>
             <div id="error-box" class="error-msg">Greška pri učitavanju podataka.</div>
         </div>
@@ -388,26 +457,49 @@
         </div>
 
         <div class="sun-card">
-            <div class="sun-title">Putanja Sunca</div>
-            <div class="sun-chart-wrapper">
-                <div class="sun-arc"></div>
-                <div id="sun-node" class="sun-node"></div>
+            <div class="sun-title">Trenutna Temperatura</div>
+            <div id="big-temp-val" class="big-temp-display">-- °C</div>
+
+            <div class="sun-path-wrapper">
+                <svg id="sun-path-svg" class="sun-path-svg" viewBox="0 0 280 130" xmlns="http://www.w3.org/2000/svg">
+                    <path class="sun-arc-night" d="M 20 110 A 120 50 0 0 0 260 110"></path>
+                    <path class="sun-arc-day" d="M 20 110 A 120 100 0 0 1 260 110"></path>
+                    <line x1="8" y1="110" x2="272" y2="110" class="horizon-line"></line>
+                    <text x="20" y="126" text-anchor="middle" class="sun-path-endpoint-label" id="sunrise-svg-label">--:--</text>
+                    <text x="260" y="126" text-anchor="middle" class="sun-path-endpoint-label" id="sunset-svg-label">--:--</text>
+                    <g id="moon-marker" class="sun-path-marker" style="opacity:0;">
+                        <text text-anchor="middle" dominant-baseline="central" font-size="20">🌙</text>
+                    </g>
+                    <g id="sun-marker" class="sun-path-marker" style="opacity:0;">
+                        <text text-anchor="middle" dominant-baseline="central" font-size="22">☀️</text>
+                    </g>
+                </svg>
+                <div id="sun-path-status" class="sun-path-status">Računam poziciju sunca...</div>
             </div>
+
             <div class="sun-times">
                 <div class="sun-time-box">
-                    <span class="sun-time-label">Izlazak</span>
+                    <span class="sun-time-label">Izlazak Sunca</span>
                     <span id="sunrise-val" class="sun-time-val">--:--</span>
                 </div>
                 <div class="sun-time-box">
-                    <span class="sun-time-label">Zalazak</span>
+                    <span class="sun-time-label">Zalazak Sunca</span>
                     <span id="sunset-val" class="sun-time-val">--:--</span>
                 </div>
             </div>
             
             <div class="combined-summary-box">
-                <div class="summary-header">⚡ Pregled i nastavak dana</div>
+                <div class="summary-header">⚡ Šaljivi meteo izvještaj</div>
                 <div id="combined-summary-text" class="summary-combined-text">
-                    Učitavanje detaljne analize...
+                    Učitavanje opuštene analize...
+                </div>
+            </div>
+
+            <!-- Upozorenje koje nije sala (ozbiljan ton) -->
+            <div id="meteo-alert-box" class="meteo-alert-box">
+                <div class="alert-header">🚨 OZBILJNO METEO UPOZORENJE (NIJE ŠALA)</div>
+                <div id="meteo-alert-text" class="alert-text">
+                    Aktivno upozorenje na ekstremne vremenske prilike...
                 </div>
             </div>
         </div>
@@ -420,7 +512,7 @@
 
         <div class="weather-info">
             <div class="info-card">
-                <div class="info-label">Temperatura</div>
+                <div class="info-label">Subjektivni Osjećaj</div>
                 <div class="info-value">
                     <span id="temp-val">-- °C</span>
                     <span id="temp-arrow" class="trend-arrow neutral">→</span>
@@ -472,9 +564,40 @@
         let prognozaPodaci = []; 
         let izabraniIndex = 0;
         let scrollTimeout;
-        let sunriseTimeIso = "";
-        let sunsetTimeIso = "";
+        let isScrollingProgrammatically = false;
         let globalDailyData = null;
+        let globalSunMapa = {}; // datum (YYYY-MM-DD) -> { sunrise: Date, sunset: Date }
+
+        function uzmiNasumicno(niz) {
+            return niz[Math.floor(Math.random() * niz.length)];
+        }
+
+        function formatirajDatumString(d) {
+            const god = d.getFullYear();
+            const mj = String(d.getMonth() + 1).padStart(2, '0');
+            const dan = String(d.getDate()).padStart(2, '0');
+            return `${god}-${mj}-${dan}`;
+        }
+
+        function pomjeriDatumString(datumStr, brojDana) {
+            const [g, m, d] = datumStr.split('-').map(Number);
+            const dt = new Date(g, m - 1, d);
+            dt.setDate(dt.getDate() + brojDana);
+            return formatirajDatumString(dt);
+        }
+
+        function formatVrijemeSati(d) {
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+
+        function formatTrajanje(ms) {
+            if (ms < 0) ms = 0;
+            const ukupnoMin = Math.round(ms / 60000);
+            const h = Math.floor(ukupnoMin / 60);
+            const m = ukupnoMin % 60;
+            if (h <= 0) return `${m} min`;
+            return `${h}h ${m}min`;
+        }
 
         function dajIkonuVremena(code) {
             if (code === 0) return "☀️";
@@ -482,11 +605,20 @@
             if (code === 2) return "⛅";
             if (code === 3) return "☁️";
             if (code === 45 || code === 48) return "🌫️";
+            if (code === 56 || code === 57 || code === 66 || code === 67) return "🌨️"; // leden kiša/rosulja
             if (code >= 51 && code <= 67) return "🌧️";
             if (code >= 71 && code <= 77) return "❄️";
+            if (code === 85 || code === 86) return "🌨️"; // snježni pljuskovi
             if (code >= 80 && code <= 82) return "🌦️";
             if (code >= 95) return "⛈️";
             return "🌤️";
+        }
+
+        // WMO kodovi koji predstavljaju bilo koji oblik ledenih/snježnih padavina
+        // (koristi se za dosljednu detekciju opasnih uslova kroz cijelu aplikaciju)
+        function jeLedenaPadavina(code) {
+            return (code >= 71 && code <= 77) || code === 85 || code === 86 ||
+                   code === 56 || code === 57 || code === 66 || code === 67;
         }
 
         function stepeniUSmjer(deg) {
@@ -499,51 +631,74 @@
             errorBox.style.display = 'none';
 
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weathercode&daily=sunrise,sunset,weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7`;
                 const res = await fetch(url);
                 
                 if (!res.ok) throw new Error("API odziv nije ispravan");
                 
                 const data = await res.json();
 
-                if (data && data.hourly) {
+                if (data && data.hourly && data.daily) {
                     const sada = new Date();
-                    const trenutniSat = sada.getHours();
                     globalDailyData = data.daily;
 
-                    if (data.daily && data.daily.sunrise) {
-                        sunriseTimeIso = data.daily.sunrise[0];
-                        sunsetTimeIso = data.daily.sunset[0];
-
-                        document.getElementById('sunrise-val').innerText = sunriseTimeIso.split('T')[1];
-                        document.getElementById('sunset-val').innerText = sunsetTimeIso.split('T')[1];
+                    // Mapa izlaska/zalaska sunca za SVAKI dan iz odgovora (jučer, danas, sutra, ...)
+                    // Ovo je ključno da bi sati poslije ponoći ispravno znali kada je "noć", a ne
+                    // da pogrešno koriste samo izlazak/zalazak za "danas".
+                    globalSunMapa = {};
+                    if (data.daily.time) {
+                        data.daily.time.forEach((datStr, i) => {
+                            globalSunMapa[datStr] = {
+                                sunrise: new Date(data.daily.sunrise[i]),
+                                sunset: new Date(data.daily.sunset[i])
+                            };
+                        });
                     }
 
-                    prognozaPodaci = data.hourly.time.slice(0, 24).map((t, i) => {
+                    // Pronađi indeks trenutnog sata unutar cijelog niza (uključujući jučerašnji dan
+                    // zahvaljujući past_days=1), pa napravi KLIZEĆI prozor od 24h počevši od SADA.
+                    // Ovo umjesto starog pristupa koji je uvijek uzimao sate od ponoći "danas",
+                    // pa je npr. u 23h prikazivao samo 1 preostali sat umjesto punih narednih 24h.
+                    let trenutniIndex = data.hourly.time.findIndex(t => new Date(t) > sada) - 1;
+                    if (trenutniIndex < 0) trenutniIndex = 0;
+
+                    prognozaPodaci = data.hourly.time.slice(trenutniIndex, trenutniIndex + 24).map((t, i) => {
+                        const gi = trenutniIndex + i; // globalni indeks u originalnom nizu
                         const satTekst = t.split('T')[1];
                         const satNum = parseInt(satTekst.split(':')[0], 10);
-                        const code = data.hourly.weathercode ? data.hourly.weathercode[i] : 0;
-                        
+                        const datumStr = t.split('T')[0];
+                        const code = data.hourly.weather_code ? data.hourly.weather_code[gi] : 0;
+                        const itemDate = new Date(t);
+
+                        const sunZaOvajDan = globalSunMapa[datumStr];
+                        let jeMrak = false;
+                        if (sunZaOvajDan) {
+                            jeMrak = itemDate < sunZaOvajDan.sunrise || itemDate > sunZaOvajDan.sunset;
+                        } else {
+                            jeMrak = satNum < 5 || satNum > 20;
+                        }
+
                         return {
                             fullIso: t,
+                            datum: datumStr,
                             vreme: satTekst,
                             satNum: satNum,
-                            temp: Math.round(data.hourly.temperature_2m[i]),
-                            vlaznost: data.hourly.relative_humidity_2m ? Math.round(data.hourly.relative_humidity_2m[i]) : 0,
-                            pop: data.hourly.precipitation_probability ? data.hourly.precipitation_probability[i] : 0,
-                            uv: data.hourly.uv_index ? Math.round(data.hourly.uv_index[i]) : 0,
-                            vjetar: Math.round(data.hourly.wind_speed_10m[i]),
-                            smjerVjetra: data.hourly.wind_direction_10m[i],
-                            pritisak: Math.round(data.hourly.pressure_msl[i]),
-                            picto: code
+                            temp: Math.round(data.hourly.temperature_2m[gi]),
+                            feelsLike: data.hourly.apparent_temperature ? Math.round(data.hourly.apparent_temperature[gi]) : Math.round(data.hourly.temperature_2m[gi]),
+                            vlaznost: data.hourly.relative_humidity_2m ? Math.round(data.hourly.relative_humidity_2m[gi]) : 0,
+                            pop: data.hourly.precipitation_probability ? data.hourly.precipitation_probability[gi] : 0,
+                            uv: data.hourly.uv_index ? Math.round(data.hourly.uv_index[gi]) : 0,
+                            vjetar: Math.round(data.hourly.wind_speed_10m[gi]),
+                            smjerVjetra: data.hourly.wind_direction_10m[gi],
+                            pritisak: Math.round(data.hourly.pressure_msl[gi]),
+                            picto: code,
+                            jeMrak: jeMrak
                         };
                     });
 
-                    let idx = prognozaPodaci.findIndex(p => p.satNum === trenutniSat);
-                    if (idx === -1) idx = 0;
-                    
                     izgradiRollerSati();
-                    setTimeout(() => skrolujNaIndex(idx), 100);
+                    // Prvi element u nizu JE sadašnji sat (jer prozor kreće od "sada"), pa uvijek skrolujemo na 0.
+                    setTimeout(() => skrolujNaIndex(0), 100);
                 }
             } catch (err) {
                 console.error("Greška pri učitavanju:", err);
@@ -551,122 +706,352 @@
             }
         }
 
+        const bazeRecenica = {
+            noc_mirno: [
+                "Duboka noć donosi mirnu atmosferu i temperaturu od ${TEMP}°C.",
+                "Tiha noć je spustila temperaturu na ugodnih ${TEMP}°C za spavanje.",
+                "Mrak je zagrlio grad, a živa stoji na stabilnih ${TEMP}°C.",
+                "Ponoćni mir vlada ulicama uz svježih ${TEMP}°C.",
+                "Zvijezde sjaje dok termometar pokazuje ugodnih ${TEMP}°C.",
+                "Mirna ljetna noć drži temperaturu na prijatnih ${TEMP}°C.",
+                "Nema vjetra ni buke, noć je stvorena za odmor na ${TEMP}°C.",
+                "Miran zrak i ugodnih ${TEMP}°C daju savršene uslove za san.",
+                "Mjesečina obasjava grad, a temperatura se umirila na ${TEMP}°C.",
+                "Tišina, mir i stabilnih ${TEMP}°C obilježavaju ovaj dio noći."
+            ],
+            noc_vruce: [
+                "Mrak je odavno pao, ali noćna žega ne popušta na ~${TEMP}°C.",
+                "Zvjezdano nebo nad nama, ali asfalt se još puši na ${TEMP}°C.",
+                "Topla ljetna noć drži temperaturu na visokih ${TEMP}°C.",
+                "Klima uređaji rade prekovremeno jer noć prži na ${TEMP}°C.",
+                "Asfalt ne stigne da se ohladi, noć nam donosi ${TEMP}°C.",
+                "Vruća noć bez daška vjetra, znojimo se na ${TEMP}°C.",
+                "Spavanje s otvorenim prozorom ne pomaže na ${TEMP}°C.",
+                "Tropska noć u gradu, živa stoji visoko na ${TEMP}°C.",
+                "Mrak je tu, ali ljetna para ne popušta sa ${TEMP}°C.",
+                "Teška i sparna noć drži temperaturu na ${TEMP}°C."
+            ],
+            noc_kisa: [
+                "Noćni pljuskovi nad gradom, a živa stoji na ugodnih ${TEMP}°C.",
+                "Mrak je, a kiša rominja i hladi zrak na ${TEMP}°C.",
+                "Grmi i sijeva u noći, temperatura je pala na ${TEMP}°C.",
+                "Kapi kiše udaraju u prozore uz noćnih ${TEMP}°C.",
+                "Vlažna noć sa povremenim pljuskovima na ${TEMP}°C.",
+                "Mokre ulice u mraku i svježih ${TEMP}°C.",
+                "Nevrijeme u noći donosi kišu i temperaturu od ${TEMP}°C.",
+                "Sitna kiša rominja dok mjerimo ${TEMP}°C.",
+                "Grmljavinska noć rashlađuje zrak na ${TEMP}°C.",
+                "Kišovito i tmurno pod okriljem noći na ${TEMP}°C."
+            ],
+            oblacno: [
+                "Nebo se navuklo sivim oblacima, sunce je danas na pauzi uz ${TEMP}°C.",
+                "Teški oblaci prekrivaju grad, kiša visi u zraku na ${TEMP}°C.",
+                "Sivo i tmurno nebo zaklanja vidik, mjerimo ${TEMP}°C.",
+                "Sve je u nijansama sive, vrijeme sumnjivo miruje na ${TEMP}°C.",
+                "Oblaci prijetog izgleda drže temperaturu na stabilnih ${TEMP}°C.",
+                "Sunce se sakrilo iza debele oblačne zavjese na ${TEMP}°C.",
+                "Tmuran dan bez trunke plavog neba, termometar pokazuje ${TEMP}°C.",
+                "Priroda izgleda kao da će svakog trena zaplakati na ${TEMP}°C.",
+                "Oblačno i tromo vrijeme pritiska grad na ${TEMP}°C.",
+                "Gusti oblaci ne daju suncu da prođe, ugodnih ${TEMP}°C."
+            ],
+            led_i_snijeg: [
+                "Ledena kora i poledica prijete na ${TEMP}°C, klizavo je na svakom koraku!",
+                "Stiže smrzavanje i ledeni udar sa ${TEMP}°C, obucite se debelo!",
+                "Sve se zaledilo na ${TEMP}°C, oprez u saobraćaju i na trotoarima!",
+                "Ledene iglice i nula stepeni (ili ispod) donose pravu zimsku idilu na ${TEMP}°C.",
+                "Pahulje i led preuzimaju kontrolu nad gradom uz ${TEMP}°C.",
+                "Pazite se klizavice, živa je pala na ${TEMP}°C i zaledila sve živo.",
+                "Led i snijeg prijete da zaveju ulice na ${TEMP}°C.",
+                "Prava ledena košava i promrzli prsti na ${TEMP}°C."
+            ],
+            mraz: [
+                "Jutarnji mraz je stegao travu i automobile na ${TEMP}°C, dobro ostružite šoferšajbnu!",
+                "Štipa za obraze, mraz je okovao sve na ${TEMP}°C.",
+                "Beli se slana po krovovima uz oštar mraz od ${TEMP}°C.",
+                "Studen i mraz u zraku ne praštaju na ${TEMP}°C.",
+                "Jutro grize mrazom i niskim temperaturama na ${TEMP}°C.",
+                "Zaledila se voda u lokvama, mraz je na ${TEMP}°C."
+            ],
+            magla: [
+                "Gusta magla je progutala grad, prst pred okom se ne vidi na ${TEMP}°C.",
+                "Mliječni pokrivač i magla drže vidljivost na nuli uz ${TEMP}°C.",
+                "Magla se spustila do tla, oprezno vozite po ${TEMP}°C.",
+                "Teška i vlažna magla obavila ulice na ${TEMP}°C.",
+                "Sivo i maglovito jutro skriva horizont na ${TEMP}°C."
+            ],
+            vjetrovito: [
+                "Puše kao da je pustinja, vjetar nosi sve pred sobom na ${TEMP}°C!",
+                "Jak i nemiran vjetar šamara grad uz ${TEMP}°C.",
+                "Udari vjetra prave haos na ulicama pri ${TEMP}°C.",
+                "Vjetrovito i neugodno, dobro se držite za šešire na ${TEMP}°C.",
+                "Puše olujni vjetar koji pojačava osjećaj hladnoće na ${TEMP}°C."
+            ],
+            jutro_mirno: [
+                "Jutarnje sunce grije ugodno, a temperatura je ${TEMP}°C.",
+                "Lijepo i miran jutro nudi ugodnih ${TEMP}°C za početak dana.",
+                "Svjež jutarnji zrak i sunčani zraci na ${TEMP}°C.",
+                "Mirno svitanje uz prijatnu temperaturu od ${TEMP}°C.",
+                "Jutro bez vjetra, idealno za kafu na otvorenom uz ${TEMP}°C."
+            ],
+            jutro_vruce: [
+                "Rano jutro već obećava pakleni dan sa ${TEMP}°C.",
+                "Sunce prži od ranog jutra na ${TEMP}°C.",
+                "Jutarnja žega već grije na visokih ${TEMP}°C.",
+                "Rani sati donose sparinu i ${TEMP}°C.",
+                "Sunce je odavno visoko, a mjerimo ${TEMP}°C."
+            ],
+            jutro_kisa: [
+                "Jutarnji pljuskovi kvase grad na ${TEMP}°C.",
+                "Kišovito jutro donosi osvježenje na ${TEMP}°C.",
+                "Rano buđenje uz kišu i ${TEMP}°C.",
+                "Tmurno jutro sa padavinama na ${TEMP}°C.",
+                "Kapi kiše od ranog jutra na ${TEMP}°C."
+            ],
+            dan_mirno: [
+                "Vrijeme je milina, taman za šetnju uz ugodnih ${TEMP}°C.",
+                "Sunce sija bez pretjerivanja, današnji maksimum je ${TEMP}°C.",
+                "Lijep i miran dan s temperaturom do ${TEMP}°C.",
+                "Stabilno i ugodno vrijeme na ${TEMP}°C.",
+                "Prijatan dan stvoren za boravak vani na ${TEMP}°C."
+            ],
+            dan_vruce: [
+                "Sunce prži do ${TEMP}°C, bježite u hladovinu pod hitno!",
+                "Ljetna žega je u punom gasu, mjerimo paklenih ${TEMP}°C.",
+                "Asfalt se topi na ${TEMP}°C, držite se hladne vode.",
+                "Toplotni udar trese grad sa ${TEMP}°C.",
+                "Sunce grije bez milosti na ${TEMP}°C."
+            ],
+            dan_kisa: [
+                "Danas pliva sve osim pataka, a živa staje na ${TEMP}°C.",
+                "Nebo se namrštilo opasno, ponesite kišobran na ${TEMP}°C.",
+                "Pravi tuš s neba danas uz maksimalnih ${TEMP}°C.",
+                "Kišni dan nam donosi ${TEMP}°C.",
+                "Voda pada sa neba, temperatura je ${TEMP}°C."
+            ],
+            tri_sata_saljivo: [
+                "Naredna 3 sata donose taman dovoljno vremena da skuhate kafu i pregorite od ${TEMP}°C.",
+                "U iduća 3 sata vrijeme se neće pomaknuti s mjesta, a mi ćemo se družiti uz ${TEMP}°C.",
+                "U iduća 3 sata atmosfera miruje, a temperatura se zakucala na ${TEMP}°C.",
+                "Naredna 3 sata obećavaju ravnu liniju na grafikonu i ugodnih ${TEMP}°C.",
+                "U iduća 3 sata očekujte totalnu idilu i zabetoniranih ${TEMP}°C.",
+                "U iduća 3 sata vrijeme miruje kao da je neko povukao ručnu kočnicu na ${TEMP}°C.",
+                "Naredna 3 sata donose stabilnost i ${TEMP}°C, idealno za gubljenje vremena na telefonu.",
+                "U iduća 3 sata oblaci nemaju planove, a termometar uporno drži ${TEMP}°C.",
+                "Naredni satci donose toliko stabilnosti da će vam se sat pokvariti na ${TEMP}°C.",
+                "U iduća 3 sata vrijeme miruje i ne miče se s mrtve tačke uz ${TEMP}°C."
+            ]
+        };
+
+        function dajNasumicnuRecenicu(tip, tempVal) {
+            const lista = bazeRecenica[tip] || bazeRecenica.dan_mirno;
+            const sablon = uzmiNasumicno(lista);
+            return sablon.replace(/\${TEMP}/g, tempVal);
+        }
+
         function generisiKombinovaniIzvjestajZaSat(fokusIndex) {
             const summaryEl = document.getElementById('combined-summary-text');
+            const alertBoxEl = document.getElementById('meteo-alert-box');
+            const alertTextEl = document.getElementById('meteo-alert-text');
+
             if (!prognozaPodaci || prognozaPodaci.length === 0) return;
 
             const trenutniPodatak = prognozaPodaci[fokusIndex];
-            const fokusSat = trenutniPodatak.satNum;
-            const maxTempDanas = Math.max(...prognozaPodaci.map(p => p.temp));
+            const trenutniSat = trenutniPodatak.satNum;
+            const jeMrakSada = trenutniPodatak.jeMrak;
+            const tempSada = trenutniPodatak.temp;
+            const weatherCode = trenutniPodatak.picto;
+            const vjetarSada = trenutniPodatak.vjetar;
+            const uvSada = trenutniPodatak.uv;
             
-            let dnevniTekst = "";
-            let narednaTriSataTekst = "";
-            let narednaTriDanaTekst = "";
+            let tipPrvogDijela = "dan_mirno";
+            let ozbiljnoUpozorenje = null;
 
-            const grmljavinaSat = prognozaPodaci.find(p => p.picto >= 95);
-            const kisaSat = prognozaPodaci.find(p => p.picto >= 51 && p.picto <= 82);
-            
-            if (grmljavinaSat) {
-                dnevniTekst = `Danas nestabilno uz grmljavinu oko ${grmljavinaSat.vreme}h i maks. ${maxTempDanas}°C.`;
-            } else if (kisaSat) {
-                dnevniTekst = `Danas promjenjivo uz povremenu kišu oko ${kisaSat.vreme}h i temperaturu do ${maxTempDanas}°C.`;
-            } else if (maxTempDanas >= 30) {
-                dnevniTekst = `Danas sunčano i vruće do ${maxTempDanas}°C.`;
-            } else {
-                dnevniTekst = `Danas pretežno sunčano sa najvišom temperaturu do ${maxTempDanas}°C.`;
+            // Detekcija opasnih uslova za ozbiljno upozorenje (koje nije šala)
+            if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
+                ozbiljnoUpozorenje = `CRVENI METEOALARM: Očekuje se jak led, snježne padavine i temperatura od ${tempSada}°C! Opasnost od potpunog zaleđivanja saobraćajnica. Oprez je obavezan!`;
+                tipPrvogDijela = "led_i_snijeg";
+            } else if (tempSada <= 2 && (weatherCode === 0 || weatherCode === 1) && !jeMrakSada) {
+                ozbiljnoUpozorenje = `UPOZORENJE NA MRAZ: Temperatura je pala na ${tempSada}°C uz prijetnju jakog jutarnjeg mraza i poledice. Zaštitite usjeve i osigurajte vozila!`;
+                tipPrvogDijela = "mraz";
+            } else if (tempSada >= 35) {
+                ozbiljnoUpozorenje = `EKSTREMNA VRUĆINA: Toplotni udar sa temperaturom od ${tempSada}°C! UV indeks je visok. Izbjegavajte boravak na suncu i unosite dovoljno tečnosti!`;
+                tipPrvogDijela = "dan_vruce";
+            } else if (vjetarSada >= 45) {
+                ozbiljnoUpozorenje = `OLUJNI VJETAR: Mjere se opasni udari vjetra brzine do ${vjetarSada} km/h. Moguća oštećenja imovine i nestabilne infrastrukture!`;
+                tipPrvogDijela = "vjetrovito";
+            } else if (weatherCode >= 95) {
+                ozbiljnoUpozorenje = `OPASNOST OD NEVREMENA: Registrovane su grmljavinske nepogode i olujni pljuskovi. Sklonite se na sigurno!`;
+                tipPrvogDijela = "dan_kisa";
             }
 
-            // Izračunavanje stanja za naredna 3 sata od TRENUTNO IZABRANOG sata na valjku
+            // Prikaz ili sakrivanje ozbiljnog upozorenja
+            if (ozbiljnoUpozorenje) {
+                alertTextEl.innerText = ozbiljnoUpozorenje;
+                alertBoxEl.style.display = 'block';
+            } else {
+                alertBoxEl.style.display = 'none';
+            }
+
+            // Standardna klasifikacija za šaljivi izvještaj
+            if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
+                tipPrvogDijela = "led_i_snijeg";
+            } else if (tempSada <= 2 && (weatherCode === 0 || weatherCode === 1) && !jeMrakSada) {
+                tipPrvogDijela = "mraz";
+            } else if (weatherCode === 45 || weatherCode === 48) {
+                tipPrvogDijela = "magla";
+            } else if (vjetarSada > 35) {
+                tipPrvogDijela = "vjetrovito";
+            } else if (weatherCode === 3) {
+                tipPrvogDijela = "oblacno";
+            } else if (jeMrakSada) {
+                if (tempSada <= 0) {
+                    tipPrvogDijela = "led_i_snijeg";
+                } else if (tempSada >= 25 || trenutniPodatak.pop > 40) {
+                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : "noc_vruce";
+                } else {
+                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : "noc_mirno";
+                }
+            } else {
+                if (trenutniSat >= 5 && trenutniSat < 10) {
+                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "jutro_kisa" : (tempSada >= 27 ? "jutro_vruce" : "jutro_mirno");
+                } else {
+                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "dan_kisa" : (tempSada >= 30 ? "dan_vruce" : "dan_mirno");
+                }
+            }
+
+            const dioDanaTekst = dajNasumicnuRecenicu(tipPrvogDijela, tempSada);
+
             const naredna3Sata = prognozaPodaci.slice(fokusIndex + 1, fokusIndex + 4);
-            
-            if (naredna3Sata.length > 0) {
-                const grmU3 = naredna3Sata.find(p => p.picto >= 95);
-                const kisaU3 = naredna3Sata.find(p => p.picto >= 51 && p.picto <= 82);
+            const prosjekNaredna3 = naredna3Sata.length > 0 
+                ? Math.round(naredna3Sata.reduce((acc, curr) => acc + curr.temp, 0) / naredna3Sata.length) 
+                : tempSada;
 
-                if (grmU3) {
-                    narednaTriSataTekst = `U naredna 3h grmljavinsko nevrijeme.`;
-                } else if (kisaU3) {
-                    narednaTriSataTekst = `U naredna 3h krene kiša.`;
+            const imaLiPadavinaU3Sata = naredna3Sata.some(p => p.pop > 40 || p.picto >= 51);
+            const imaLiLedaU3Sata = naredna3Sata.some(p => p.temp <= 0 && jeLedenaPadavina(p.picto));
+            const jeLiOblacnoU3Sata = naredna3Sata.some(p => p.picto === 3);
+            const jeLiMaglaU3Sata = naredna3Sata.some(p => p.picto === 45 || p.picto === 48);
+            const jeLiVjetrovitoU3Sata = naredna3Sata.some(p => p.vjetar > 35);
+            
+            let triSataTekst = "";
+            if (imaLiLedaU3Sata || (prosjekNaredna3 <= 0 && imaLiPadavinaU3Sata)) {
+                triSataTekst = `U iduća 3 sata pripremite se za poledicu, led i snježne nanose na ${prosjekNaredna3}°C.`;
+            } else if (jeLiMaglaU3Sata) {
+                triSataTekst = `U iduća 3 sata magla se neće pomjeriti ni za milimetar uz ${prosjekNaredna3}°C.`;
+            } else if (jeLiVjetrovitoU3Sata) {
+                triSataTekst = `U iduća 3 sata vjetar će pojačati udare i dati osjećaj prave studeni na ${prosjekNaredna3}°C.`;
+            } else if (jeLiOblacnoU3Sata) {
+                triSataTekst = `U iduća 3 sata sivi oblaci ostaju glavna atrakcija na nebu uz ${prosjekNaredna3}°C.`;
+            } else if (jeMrakSada) {
+                if (imaLiPadavinaU3Sata) {
+                    triSataTekst = `U iduća 3 sata očekuje se da kiša pokvari noćni provod uz ${prosjekNaredna3}°C.`;
                 } else {
-                    const zadnjaTemp = naredna3Sata[naredna3Sata.length - 1].temp;
-                    const diff = zadnjaTemp - trenutniPodatak.temp;
-                    
-                    if (diff >= 2) {
-                        narednaTriSataTekst = `U naredna 3h porast na ${zadnjaTemp}°C.`;
-                    } else if (diff <= -2) {
-                        narednaTriSataTekst = `U naredna 3h pad na ${zadnjaTemp}°C.`;
-                    } else {
-                        narednaTriSataTekst = `U naredna 3h stabilno (~${zadnjaTemp}°C).`;
-                    }
+                    triSataTekst = `U iduća 3 sata noć ostaje pod kontrolom i ne miče se sa ${prosjekNaredna3}°C.`;
                 }
             } else {
-                narednaTriSataTekst = `U nastavku noći stabilno (~${trenutniPodatak.temp}°C).`;
-            }
-
-            // Analiza za naredna 3 dana
-            if (globalDailyData && globalDailyData.temperature_2m_max && globalDailyData.temperature_2m_max.length >= 4) {
-                const maxNaredna = [
-                    Math.round(globalDailyData.temperature_2m_max[1]),
-                    Math.round(globalDailyData.temperature_2m_max[2]),
-                    Math.round(globalDailyData.temperature_2m_max[3])
-                ];
-                const codesNaredna = [
-                    globalDailyData.weathercode[1],
-                    globalDailyData.weathercode[2],
-                    globalDailyData.weathercode[3]
-                ];
-
-                const imaKiseUDanima = codesNaredna.some(c => c >= 51 && c <= 82);
-                const imaGrmljavineUDanima = codesNaredna.some(c => c >= 95);
-
-                const min3D = Math.min(...maxNaredna);
-                const max3D = Math.max(...maxNaredna);
-
-                if (imaGrmljavineUDanima) {
-                    narednaTriDanaTekst = `Naredna 3 dana nestabilno sa pljuskovima (${min3D}°C do ${max3D}°C).`;
-                } else if (imaKiseUDanima) {
-                    narednaTriDanaTekst = `Naredna 3 dana povremeno sa kišom i temp. ${min3D}-${max3D}°C.`;
+                if (imaLiPadavinaU3Sata) {
+                    triSataTekst = `U iduća 3 sata oblaci spremaju iznenađenje i kišnu idilu na ${prosjekNaredna3}°C.`;
+                } else if (prosjekNaredna3 >= 30) {
+                    triSataTekst = `U iduća 3 sata sunce grije kao da nam se sveti, mjerimo ${prosjekNaredna3}°C.`;
                 } else {
-                    narednaTriDanaTekst = `Naredna 3 dana ostaje suho sa temp. ${min3D}°C do ${max3D}°C.`;
+                    triSataTekst = dajNasumicnuRecenicu("tri_sata_saljivo", prosjekNaredna3);
                 }
             }
 
-            summaryEl.innerText = `${dnevniTekst} ${narednaTriSataTekst} ${narednaTriDanaTekst}`;
+            let min3D = 20, max3D = 30;
+            // Napomena: pošto API sada vraća i jučerašnji dan (past_days=1), indeks "danas"
+            // više NIJE nužno 0 — tražimo ga po stvarnom datumu da izbjegnemo pomak od jednog dana.
+            if (globalDailyData && globalDailyData.time && globalDailyData.temperature_2m_max) {
+                const danasStr = formatirajDatumString(new Date());
+                let danasIdx = globalDailyData.time.indexOf(danasStr);
+                if (danasIdx === -1) danasIdx = 0;
+
+                if (globalDailyData.temperature_2m_max.length >= danasIdx + 4) {
+                    const maxNaredna = [
+                        Math.round(globalDailyData.temperature_2m_max[danasIdx + 1]),
+                        Math.round(globalDailyData.temperature_2m_max[danasIdx + 2]),
+                        Math.round(globalDailyData.temperature_2m_max[danasIdx + 3])
+                    ];
+                    const minNaredna = [
+                        Math.round(globalDailyData.temperature_2m_min[danasIdx + 1]),
+                        Math.round(globalDailyData.temperature_2m_min[danasIdx + 2]),
+                        Math.round(globalDailyData.temperature_2m_min[danasIdx + 3])
+                    ];
+                    min3D = Math.min(...minNaredna);
+                    max3D = Math.max(...maxNaredna);
+                }
+            }
+
+            const triDanaTekst = `Iduća 3 dana donose temperature u rasponu od ${min3D}°C do ${max3D}°C.`;
+
+            summaryEl.innerText = `${dioDanaTekst} ${triSataTekst} ${triDanaTekst}`;
         }
 
-        function osvjeziGrafikonSuncaZaSat(vrijemeIso) {
-            if (!sunriseTimeIso || !sunsetTimeIso) return;
+        function nacrtajSuncevuPutanju(item) {
+            const statusEl = document.getElementById('sun-path-status');
+            const sunMarker = document.getElementById('sun-marker');
+            const moonMarker = document.getElementById('moon-marker');
+            const sunInfo = globalSunMapa[item.datum];
 
-            const izabranoVrijeme = new Date(vrijemeIso);
-            const sunrise = new Date(sunriseTimeIso);
-            const sunset = new Date(sunsetTimeIso);
+            if (!sunInfo) {
+                statusEl.innerText = "Podaci o Sunčevoj putanji trenutno nisu dostupni.";
+                sunMarker.style.opacity = 0;
+                moonMarker.style.opacity = 0;
+                return;
+            }
 
-            const totalDanMs = sunset - sunrise;
-            const protekloMs = izabranoVrijeme - sunrise;
+            // Prikaz vremena izlaska/zalaska za DAN kojem selektovani sat pripada
+            // (bitno kad klizeći prozor od 24h pređe u sutrašnji dan).
+            document.getElementById('sunrise-val').innerText = formatVrijemeSati(sunInfo.sunrise);
+            document.getElementById('sunset-val').innerText = formatVrijemeSati(sunInfo.sunset);
+            document.getElementById('sunrise-svg-label').textContent = formatVrijemeSati(sunInfo.sunrise);
+            document.getElementById('sunset-svg-label').textContent = formatVrijemeSati(sunInfo.sunset);
 
-            let procenat = protekloMs / totalDanMs;
-            let isNoc = false;
+            const trenutak = new Date(item.fullIso);
+            const cx = 140, cyHoriz = 110, rxEl = 120;
 
-            if (procenat < 0) { procenat = 0; isNoc = true; }
-            if (procenat > 1) { procenat = 1; isNoc = true; }
+            if (trenutak >= sunInfo.sunrise && trenutak <= sunInfo.sunset) {
+                // DAN — sunce putuje po gornjoj luku od izlaska (lijevo) do zalaska (desno)
+                const frakcija = (trenutak - sunInfo.sunrise) / (sunInfo.sunset - sunInfo.sunrise);
+                const thetaRad = (180 * (1 - frakcija)) * Math.PI / 180;
+                const ryEl = 100;
+                const x = cx + rxEl * Math.cos(thetaRad);
+                const y = cyHoriz - ryEl * Math.sin(thetaRad);
 
-            const ugaoRad = (1 - procenat) * Math.PI;
-            const r = 110; 
+                sunMarker.setAttribute('transform', `translate(${x.toFixed(1)}, ${y.toFixed(1)})`);
+                sunMarker.style.opacity = 1;
+                moonMarker.style.opacity = 0;
 
-            const x = r * Math.cos(ugaoRad);
-            const y = r * Math.sin(ugaoRad);
-
-            const sunNode = document.getElementById('sun-node');
-            
-            sunNode.style.left = `calc(50% + ${x}px)`;
-            sunNode.style.top = `calc(120px - ${y}px)`;
-
-            if (isNoc) {
-                sunNode.style.backgroundColor = "#94a3b8";
-                sunNode.style.boxShadow = "none";
+                const posto = Math.round(frakcija * 100);
+                const doZalaska = formatTrajanje(sunInfo.sunset - trenutak);
+                statusEl.innerText = `☀️ Dan — Sunce je na ${posto}% svog dnevnog puta (zalazak za ${doZalaska}).`;
             } else {
-                sunNode.style.backgroundColor = "#f59e0b";
-                sunNode.style.boxShadow = "0 0 12px rgba(245, 158, 11, 0.9)";
+                // NOĆ — mjesec "putuje" donjom (isprekidanom) lukom od zalaska do idućeg izlaska
+                let pocetakNoci, krajNoci;
+                if (trenutak < sunInfo.sunrise) {
+                    const jucerInfo = globalSunMapa[pomjeriDatumString(item.datum, -1)];
+                    pocetakNoci = jucerInfo ? jucerInfo.sunset : new Date(sunInfo.sunrise.getTime() - 11 * 3600 * 1000);
+                    krajNoci = sunInfo.sunrise;
+                } else {
+                    const sutraInfo = globalSunMapa[pomjeriDatumString(item.datum, 1)];
+                    pocetakNoci = sunInfo.sunset;
+                    krajNoci = sutraInfo ? sutraInfo.sunrise : new Date(sunInfo.sunset.getTime() + 11 * 3600 * 1000);
+                }
+
+                let frakcija = (trenutak - pocetakNoci) / (krajNoci - pocetakNoci);
+                frakcija = Math.min(1, Math.max(0, frakcija));
+
+                const thetaRad = (180 * frakcija) * Math.PI / 180;
+                const ryEl = 50;
+                const x = cx + rxEl * Math.cos(thetaRad);
+                const y = cyHoriz + ryEl * Math.sin(thetaRad);
+
+                moonMarker.setAttribute('transform', `translate(${x.toFixed(1)}, ${y.toFixed(1)})`);
+                moonMarker.style.opacity = 1;
+                sunMarker.style.opacity = 0;
+
+                const doIzlaska = formatTrajanje(krajNoci - trenutak);
+                statusEl.innerText = `🌙 Noć — Sunce izlazi za ${doIzlaska}.`;
             }
         }
 
@@ -686,14 +1071,31 @@
         function skrolujNaIndex(idx) {
             const list = document.getElementById('pickerList');
             const itemHeight = 40;
-            list.scrollTo({
-                top: idx * itemHeight,
-                behavior: 'smooth'
-            });
+            isScrollingProgrammatically = true;
+
+            // VAŽNO: prvo popuni sve podatke (temperatura, vjetar, putanja sunca...),
+            // pa TEK ONDA pokušaj animirano skrolovati. Ranije je scrollTo() pozivano
+            // prije postaviIndex(), pa je bilo koja greška pri skrolovanju (npr. ako
+            // element još nije spreman odmah nakon izgradnje liste) blokirala
+            // prikaz SVIH podataka u aplikaciji.
             postaviIndex(idx);
+
+            try {
+                list.scrollTo({
+                    top: idx * itemHeight,
+                    behavior: 'smooth'
+                });
+            } catch (e) {
+                list.scrollTop = idx * itemHeight;
+            }
+
+            setTimeout(() => {
+                isScrollingProgrammatically = false;
+            }, 300);
         }
 
         function handleRollerScroll() {
+            if (isScrollingProgrammatically) return;
             clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(() => {
                 const list = document.getElementById('pickerList');
@@ -722,18 +1124,18 @@
             const prethodni = prognozaPodaci[idx - 1] || podatak;
 
             if (podatak) {
-                // Ažuriramo tekstove i analizu spram izabranog sata
                 generisiKombinovaniIzvjestajZaSat(idx);
-                osvjeziGrafikonSuncaZaSat(podatak.fullIso);
+                nacrtajSuncevuPutanju(podatak);
 
+                document.getElementById('big-temp-val').innerText = `${podatak.temp} °C`;
                 document.getElementById('weather-icon').innerText = dajIkonuVremena(podatak.picto);
 
-                document.getElementById('temp-val').innerText = `${podatak.temp} °C`;
+                document.getElementById('temp-val').innerText = `${podatak.feelsLike} °C`;
                 const tempArrow = document.getElementById('temp-arrow');
-                if (podatak.temp > prethodni.temp) {
+                if (podatak.feelsLike > prethodni.feelsLike) {
                     tempArrow.innerText = "↑";
                     tempArrow.className = "trend-arrow up";
-                } else if (podatak.temp < prethodni.temp) {
+                } else if (podatak.feelsLike < prethodni.feelsLike) {
                     tempArrow.innerText = "↓";
                     tempArrow.className = "trend-arrow down";
                 } else {
@@ -766,37 +1168,41 @@
             }
         }
 
-        function dajMojaLokacija() {
+        async function dajMojaLokacija() {
+            const btn = document.querySelector('.btn-location');
+            const originalIcon = btn.innerText;
+            btn.innerText = "⏳"; 
+
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
-                        const lat = position.coords.latitude.toFixed(4);
-                        const lon = position.coords.longitude.toFixed(4);
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const latF = lat.toFixed(4);
+                        const lonF = lon.toFixed(4);
+                        
+                        const imeLokacije = `${latF}, ${lonF}`;
+
                         const select = document.getElementById('city-select');
                         
-                        let found = false;
-                        for (let i = 0; i < select.options.length; i++) {
-                            if (select.options[i].value === `${lat},${lon}`) {
-                                select.selectedIndex = i;
-                                found = true;
-                                break;
-                            }
-                        }
+                        const newOpt = document.createElement('option');
+                        newOpt.value = `${latF},${lonF}`;
+                        newOpt.innerText = `📍 ${imeLokacije}`;
+                        newOpt.selected = true;
+                        select.insertBefore(newOpt, select.firstChild);
 
-                        if (!found) {
-                            const newOpt = document.createElement('option');
-                            newOpt.value = `${lat},${lon}`;
-                            newOpt.innerText = "📍 Moja Lokacija";
-                            newOpt.selected = true;
-                            select.appendChild(newOpt);
-                        }
-
-                        dajPodatke(lat, lon);
+                        btn.innerText = originalIcon;
+                        dajPodatke(latF, lonF);
                     },
-                    () => alert("Nije moguće pristupiti lokaciji.")
+                    (err) => {
+                        btn.innerText = originalIcon;
+                        alert("Nije moguće pristupiti lokaciji. Provjerite dozvole u pregledniku.");
+                    },
+                    { timeout: 10000, enableHighAccuracy: true }
                 );
             } else {
-                alert("Geolokacija nije podržana.");
+                btn.innerText = originalIcon;
+                alert("Geolokacija nije podržana u vašem pregledniku.");
             }
         }
 
