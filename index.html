@@ -78,7 +78,7 @@
 
         .source-tag {
             font-size: 0.75rem;
-            background-color: #2563eb;
+            background-color: #10b981;
             color: #ffffff;
             padding: 4px 10px;
             border-radius: 20px;
@@ -99,6 +99,100 @@
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .sun-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .sun-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        .sun-chart-wrapper {
+            position: relative;
+            width: 100%;
+            height: 90px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            overflow: hidden;
+        }
+        .sun-arc {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            border: 2px dashed #cbd5e1;
+            position: absolute;
+            top: 10px;
+        }
+        .sun-node {
+            width: 18px;
+            height: 18px;
+            background-color: #f59e0b;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            transition: all 0.4s ease;
+            z-index: 2;
+        }
+        .sun-times {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding: 0 10px;
+        }
+        .sun-time-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sun-time-label {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .sun-time-val {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .combined-summary-box {
+            margin-top: 14px;
+            padding: 12px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            text-align: left;
+        }
+        .summary-header {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: #2563eb;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .summary-combined-text {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.45;
         }
 
         .picker-label {
@@ -190,8 +284,8 @@
         }
 
         .weather-info {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-top: 10px;
         }
@@ -200,30 +294,38 @@
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
-            padding: 12px 16px;
+            padding: 10px 12px;
             display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .info-card.full-width {
+            grid-column: span 2;
+            flex-direction: row;
             justify-content: space-between;
             align-items: center;
         }
 
         .info-label {
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-weight: 700;
+            margin-bottom: 4px;
         }
 
         .info-value { 
-            font-size: 1.15rem; 
+            font-size: 1.05rem; 
             font-weight: 800; 
             color: #0f172a; 
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
-        .trend-arrow { font-size: 1.1rem; font-weight: 900; }
+        .trend-arrow { font-size: 1rem; font-weight: 900; }
         .up { color: #ef4444; }
         .down { color: #2563eb; }
         .neutral { color: #94a3b8; }
@@ -232,11 +334,11 @@
             display: inline-block;
             transition: transform 0.3s ease;
             color: #2563eb;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
         }
         .wind-dir-text {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: #64748b;
             font-weight: 600;
         }
@@ -256,7 +358,7 @@
         <div class="header">
             <div class="header-top">
                 <h2>Vremenska Prognoza</h2>
-                <span class="source-tag">Meteoblue AI</span>
+                <span class="source-tag">ECMWF / ICON</span>
             </div>
             <div class="controls">
                 <select id="city-select" onchange="promjeniGrad()">
@@ -267,20 +369,14 @@
                     <option value="43.3438,17.8078">Mostar</option>
                     <option value="44.8169,15.8708">Bihać</option>
                     <option value="44.7865,16.6681">Sanski Most</option>
+                    <option value="44.9750,18.2830">Modriča</option>
                     <option value="44.8708,18.8100">Brčko</option>
                     <option value="44.7570,19.2144">Bijeljina</option>
                     <option value="44.7322,18.0864">Doboj</option>
-                    <option value="44.9575,18.2981">Modriča</option>
                     <option value="43.6552,17.9576">Konjic</option>
                     <option value="42.7103,18.3436">Trebinje</option>
                     <option value="43.8333,17.3000">Livno</option>
                     <option value="43.9389,17.6658">Travnik</option>
-                    <option value="43.6667,18.9761">Goražde</option>
-                    <option value="45.1447,17.2542">Gradiška</option>
-                    <option value="44.9667,16.7167">Prijedor</option>
-                    <option value="43.6406,17.2736">Tomislavgrad</option>
-                    <option value="44.3414,17.2686">Jajce</option>
-                    <option value="45.1103,15.8322">Velika Kladuša</option>
                 </select>
                 <button class="btn-location" onclick="dajMojaLokacija()" title="Moja Lokacija">📍 Lokacija</button>
             </div>
@@ -289,6 +385,31 @@
 
         <div class="weather-display">
             <div id="weather-icon" class="weather-icon-display">☀️</div>
+        </div>
+
+        <div class="sun-card">
+            <div class="sun-title">Putanja Sunca</div>
+            <div class="sun-chart-wrapper">
+                <div class="sun-arc"></div>
+                <div id="sun-node" class="sun-node"></div>
+            </div>
+            <div class="sun-times">
+                <div class="sun-time-box">
+                    <span class="sun-time-label">Izlazak</span>
+                    <span id="sunrise-val" class="sun-time-val">--:--</span>
+                </div>
+                <div class="sun-time-box">
+                    <span class="sun-time-label">Zalazak</span>
+                    <span id="sunset-val" class="sun-time-val">--:--</span>
+                </div>
+            </div>
+            
+            <div class="combined-summary-box">
+                <div class="summary-header">⚡ Pregled i nastavak dana</div>
+                <div id="combined-summary-text" class="summary-combined-text">
+                    Učitavanje detaljne analize...
+                </div>
+            </div>
         </div>
 
         <div class="picker-label">Izaberi Sat</div>
@@ -307,6 +428,27 @@
             </div>
             
             <div class="info-card">
+                <div class="info-label">Vlažnost Zraka</div>
+                <div class="info-value">
+                    <span id="humidity-val">-- %</span>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-label">Šansa za Kišu</div>
+                <div class="info-value">
+                    <span id="pop-val">-- %</span>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-label">UV Indeks</div>
+                <div class="info-value">
+                    <span id="uv-val">--</span>
+                </div>
+            </div>
+
+            <div class="info-card full-width">
                 <div class="info-label">Vjetar i Smjer</div>
                 <div class="info-value">
                     <span id="wind-val">-- km/h</span>
@@ -315,8 +457,8 @@
                 </div>
             </div>
 
-            <div class="info-card">
-                <div class="info-label">Pritisak</div>
+            <div class="info-card full-width">
+                <div class="info-label">Pritisak (MSL)</div>
                 <div class="info-value">
                     <span id="pressure-val">-- hPa</span>
                     <span id="pressure-arrow" class="trend-arrow neutral">→</span>
@@ -327,18 +469,23 @@
     </div>
 
     <script>
-        const METEOBLUE_KEY = "yPfsxREeDl1FVMXj";
         let prognozaPodaci = []; 
         let izabraniIndex = 0;
         let scrollTimeout;
+        let sunriseTimeIso = "";
+        let sunsetTimeIso = "";
+        let globalDailyData = null;
 
-        function dajIkonuVremena(picto) {
-            if (picto === 1) return "☀️";
-            if (picto === 2 || picto === 3) return "🌤️";
-            if (picto >= 4 && picto <= 6) return "☁️";
-            if (picto >= 7 && picto <= 11) return "🌧️";
-            if (picto >= 12 && picto <= 15) return "⛈️";
-            if (picto >= 16) return "❄️";
+        function dajIkonuVremena(code) {
+            if (code === 0) return "☀️";
+            if (code === 1) return "🌤️";
+            if (code === 2) return "⛅";
+            if (code === 3) return "☁️";
+            if (code === 45 || code === 48) return "🌫️";
+            if (code >= 51 && code <= 67) return "🌧️";
+            if (code >= 71 && code <= 77) return "❄️";
+            if (code >= 80 && code <= 82) return "🌦️";
+            if (code >= 95) return "⛈️";
             return "🌤️";
         }
 
@@ -352,28 +499,43 @@
             errorBox.style.display = 'none';
 
             try {
-                const mbUrl = `https://my.meteoblue.com/packages/basic-1h?lat=${lat}&lon=${lon}&apikey=${METEOBLUE_KEY}&format=json`;
-                const res = await fetch(mbUrl);
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weathercode&daily=sunrise,sunset,weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                const res = await fetch(url);
                 
                 if (!res.ok) throw new Error("API odziv nije ispravan");
                 
                 const data = await res.json();
 
-                if (data && data.data_1h) {
+                if (data && data.hourly) {
                     const sada = new Date();
                     const trenutniSat = sada.getHours();
+                    globalDailyData = data.daily;
 
-                    prognozaPodaci = data.data_1h.time.map((t, i) => {
-                        const satTekst = t.split(' ')[1] || (t.includes('T') ? t.split('T')[1] : t);
-                        const satNum = parseInt(satTekst.split(':')[0]);
+                    if (data.daily && data.daily.sunrise) {
+                        sunriseTimeIso = data.daily.sunrise[0];
+                        sunsetTimeIso = data.daily.sunset[0];
+
+                        document.getElementById('sunrise-val').innerText = sunriseTimeIso.split('T')[1];
+                        document.getElementById('sunset-val').innerText = sunsetTimeIso.split('T')[1];
+                    }
+
+                    prognozaPodaci = data.hourly.time.slice(0, 24).map((t, i) => {
+                        const satTekst = t.split('T')[1];
+                        const satNum = parseInt(satTekst.split(':')[0], 10);
+                        const code = data.hourly.weathercode ? data.hourly.weathercode[i] : 0;
+                        
                         return {
-                            vreme: satTekst.substring(0, 5),
+                            fullIso: t,
+                            vreme: satTekst,
                             satNum: satNum,
-                            temp: data.data_1h.temperature[i],
-                            vjetar: data.data_1h.windspeed[i],
-                            smjerVjetra: data.data_1h.winddirection ? data.data_1h.winddirection[i] : 0,
-                            pritisak: data.data_1h.sealevelpressure[i],
-                            picto: data.data_1h.pictocode ? data.data_1h.pictocode[i] : null
+                            temp: Math.round(data.hourly.temperature_2m[i]),
+                            vlaznost: data.hourly.relative_humidity_2m ? Math.round(data.hourly.relative_humidity_2m[i]) : 0,
+                            pop: data.hourly.precipitation_probability ? data.hourly.precipitation_probability[i] : 0,
+                            uv: data.hourly.uv_index ? Math.round(data.hourly.uv_index[i]) : 0,
+                            vjetar: Math.round(data.hourly.wind_speed_10m[i]),
+                            smjerVjetra: data.hourly.wind_direction_10m[i],
+                            pritisak: Math.round(data.hourly.pressure_msl[i]),
+                            picto: code
                         };
                     });
 
@@ -386,6 +548,125 @@
             } catch (err) {
                 console.error("Greška pri učitavanju:", err);
                 errorBox.style.display = 'block';
+            }
+        }
+
+        function generisiKombinovaniIzvjestajZaSat(fokusIndex) {
+            const summaryEl = document.getElementById('combined-summary-text');
+            if (!prognozaPodaci || prognozaPodaci.length === 0) return;
+
+            const trenutniPodatak = prognozaPodaci[fokusIndex];
+            const fokusSat = trenutniPodatak.satNum;
+            const maxTempDanas = Math.max(...prognozaPodaci.map(p => p.temp));
+            
+            let dnevniTekst = "";
+            let narednaTriSataTekst = "";
+            let narednaTriDanaTekst = "";
+
+            const grmljavinaSat = prognozaPodaci.find(p => p.picto >= 95);
+            const kisaSat = prognozaPodaci.find(p => p.picto >= 51 && p.picto <= 82);
+            
+            if (grmljavinaSat) {
+                dnevniTekst = `Danas nestabilno uz grmljavinu oko ${grmljavinaSat.vreme}h i maks. ${maxTempDanas}°C.`;
+            } else if (kisaSat) {
+                dnevniTekst = `Danas promjenjivo uz povremenu kišu oko ${kisaSat.vreme}h i temperaturu do ${maxTempDanas}°C.`;
+            } else if (maxTempDanas >= 30) {
+                dnevniTekst = `Danas sunčano i vruće do ${maxTempDanas}°C.`;
+            } else {
+                dnevniTekst = `Danas pretežno sunčano sa najvišom temperaturu do ${maxTempDanas}°C.`;
+            }
+
+            // Izračunavanje stanja za naredna 3 sata od TRENUTNO IZABRANOG sata na valjku
+            const naredna3Sata = prognozaPodaci.slice(fokusIndex + 1, fokusIndex + 4);
+            
+            if (naredna3Sata.length > 0) {
+                const grmU3 = naredna3Sata.find(p => p.picto >= 95);
+                const kisaU3 = naredna3Sata.find(p => p.picto >= 51 && p.picto <= 82);
+
+                if (grmU3) {
+                    narednaTriSataTekst = `U naredna 3h grmljavinsko nevrijeme.`;
+                } else if (kisaU3) {
+                    narednaTriSataTekst = `U naredna 3h krene kiša.`;
+                } else {
+                    const zadnjaTemp = naredna3Sata[naredna3Sata.length - 1].temp;
+                    const diff = zadnjaTemp - trenutniPodatak.temp;
+                    
+                    if (diff >= 2) {
+                        narednaTriSataTekst = `U naredna 3h porast na ${zadnjaTemp}°C.`;
+                    } else if (diff <= -2) {
+                        narednaTriSataTekst = `U naredna 3h pad na ${zadnjaTemp}°C.`;
+                    } else {
+                        narednaTriSataTekst = `U naredna 3h stabilno (~${zadnjaTemp}°C).`;
+                    }
+                }
+            } else {
+                narednaTriSataTekst = `U nastavku noći stabilno (~${trenutniPodatak.temp}°C).`;
+            }
+
+            // Analiza za naredna 3 dana
+            if (globalDailyData && globalDailyData.temperature_2m_max && globalDailyData.temperature_2m_max.length >= 4) {
+                const maxNaredna = [
+                    Math.round(globalDailyData.temperature_2m_max[1]),
+                    Math.round(globalDailyData.temperature_2m_max[2]),
+                    Math.round(globalDailyData.temperature_2m_max[3])
+                ];
+                const codesNaredna = [
+                    globalDailyData.weathercode[1],
+                    globalDailyData.weathercode[2],
+                    globalDailyData.weathercode[3]
+                ];
+
+                const imaKiseUDanima = codesNaredna.some(c => c >= 51 && c <= 82);
+                const imaGrmljavineUDanima = codesNaredna.some(c => c >= 95);
+
+                const min3D = Math.min(...maxNaredna);
+                const max3D = Math.max(...maxNaredna);
+
+                if (imaGrmljavineUDanima) {
+                    narednaTriDanaTekst = `Naredna 3 dana nestabilno sa pljuskovima (${min3D}°C do ${max3D}°C).`;
+                } else if (imaKiseUDanima) {
+                    narednaTriDanaTekst = `Naredna 3 dana povremeno sa kišom i temp. ${min3D}-${max3D}°C.`;
+                } else {
+                    narednaTriDanaTekst = `Naredna 3 dana ostaje suho sa temp. ${min3D}°C do ${max3D}°C.`;
+                }
+            }
+
+            summaryEl.innerText = `${dnevniTekst} ${narednaTriSataTekst} ${narednaTriDanaTekst}`;
+        }
+
+        function osvjeziGrafikonSuncaZaSat(vrijemeIso) {
+            if (!sunriseTimeIso || !sunsetTimeIso) return;
+
+            const izabranoVrijeme = new Date(vrijemeIso);
+            const sunrise = new Date(sunriseTimeIso);
+            const sunset = new Date(sunsetTimeIso);
+
+            const totalDanMs = sunset - sunrise;
+            const protekloMs = izabranoVrijeme - sunrise;
+
+            let procenat = protekloMs / totalDanMs;
+            let isNoc = false;
+
+            if (procenat < 0) { procenat = 0; isNoc = true; }
+            if (procenat > 1) { procenat = 1; isNoc = true; }
+
+            const ugaoRad = (1 - procenat) * Math.PI;
+            const r = 110; 
+
+            const x = r * Math.cos(ugaoRad);
+            const y = r * Math.sin(ugaoRad);
+
+            const sunNode = document.getElementById('sun-node');
+            
+            sunNode.style.left = `calc(50% + ${x}px)`;
+            sunNode.style.top = `calc(120px - ${y}px)`;
+
+            if (isNoc) {
+                sunNode.style.backgroundColor = "#94a3b8";
+                sunNode.style.boxShadow = "none";
+            } else {
+                sunNode.style.backgroundColor = "#f59e0b";
+                sunNode.style.boxShadow = "0 0 12px rgba(245, 158, 11, 0.9)";
             }
         }
 
@@ -441,6 +722,10 @@
             const prethodni = prognozaPodaci[idx - 1] || podatak;
 
             if (podatak) {
+                // Ažuriramo tekstove i analizu spram izabranog sata
+                generisiKombinovaniIzvjestajZaSat(idx);
+                osvjeziGrafikonSuncaZaSat(podatak.fullIso);
+
                 document.getElementById('weather-icon').innerText = dajIkonuVremena(podatak.picto);
 
                 document.getElementById('temp-val').innerText = `${podatak.temp} °C`;
@@ -456,13 +741,17 @@
                     tempArrow.className = "trend-arrow neutral";
                 }
 
+                document.getElementById('humidity-val').innerText = `${podatak.vlaznost} %`;
+                document.getElementById('pop-val').innerText = `${podatak.pop} %`;
+                document.getElementById('uv-val').innerText = `${podatak.uv}`;
+
                 document.getElementById('wind-val').innerText = `${podatak.vjetar} km/h`;
                 const windArrow = document.getElementById('wind-arrow');
                 const smjerDeg = podatak.smjerVjetra || 0;
                 windArrow.style.transform = `rotate(${smjerDeg}deg)`;
                 document.getElementById('wind-dir').innerText = `(${stepeniUSmjer(smjerDeg)})`;
 
-                document.getElementById('pressure-val').innerText = `${Math.round(podatak.pritisak)} hPa`;
+                document.getElementById('pressure-val').innerText = `${podatak.pritisak} hPa`;
                 const pressureArrow = document.getElementById('pressure-arrow');
                 if (podatak.pritisak > prethodni.pritisak) {
                     pressureArrow.innerText = "↑";
@@ -483,7 +772,6 @@
                     (position) => {
                         const lat = position.coords.latitude.toFixed(4);
                         const lon = position.coords.longitude.toFixed(4);
-                        
                         const select = document.getElementById('city-select');
                         
                         let found = false;
