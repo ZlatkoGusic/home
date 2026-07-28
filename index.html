@@ -1,728 +1,525 @@
 <!DOCTYPE html>
 <html lang="bs">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mapa proizvodnje</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg: #eef1f3;
-    --panel: #ffffff;
-    --panel-2: #f4f6f8;
-    --border: #d7dde2;
-    --text: #1b2226;
-    --muted: #667079;
-    --steel: #2f6480;
-    --ok: #2f8f5b;
-    --warn: #c97f12;
-    --crit: #c23b35;
-    --hazard: #f4c430;
-  }
-  *{box-sizing:border-box;}
-  html,body{overflow-x:hidden;}
-  body{
-    margin:0;
-    background:var(--bg);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
-  }
-  .wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vremenska Prognoza - BiH</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 12px;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            padding: 24px;
+            width: 100%;
+            max-width: 480px;
+        }
+        .header {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 15px;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h2 { color: #0f172a; font-size: 1.35rem; font-weight: 800; }
+        
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
 
-  header{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-end;
-    flex-wrap:wrap;
-    gap:16px;
-    border-bottom:2px solid var(--border);
-    padding-bottom:18px;
-    margin-bottom:28px;
-  }
-  .brand{display:flex;align-items:center;gap:12px;}
-  .brand-mark{
-    width:36px;height:36px;
-    background:repeating-linear-gradient(45deg, var(--hazard) 0 6px, var(--text) 6px 12px);
-    border-radius:4px;
-    flex-shrink:0;
-  }
-  h1{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:22px;
-    letter-spacing:0.5px;
-    margin:0;
-    text-transform:uppercase;
-  }
-  .sub{color:var(--muted);font-size:13px;margin-top:2px;}
-  .stats{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;}
-  .stat{text-align:right;}
-  .stat .n{font-size:22px;font-weight:700;line-height:1;}
-  .stat .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
-  .stat.crit .n{color:var(--crit);}
-  .stat.warn .n{color:var(--warn);}
-  .stat.ok .n{color:var(--ok);}
-  .backup-btns{display:flex;gap:6px;align-items:center;margin-left:6px;}
-  .mini-btn{
-    background:none;border:1px solid var(--border);color:var(--muted);
-    font-family:'Inter',sans-serif;font-size:11px;padding:6px 10px;
-    border-radius:5px;cursor:pointer;
-  }
-  .mini-btn:hover{color:var(--text);border-color:var(--steel);}
+        select {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+            background-color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #0f172a;
+            outline: none;
+            cursor: pointer;
+            flex-grow: 1;
+        }
 
-  .flow-row{
-    display:flex;
-    gap:14px;
-    margin-bottom:14px;
-    position:relative;
-  }
-  .flow-row.reverse{flex-direction:row-reverse;}
-  .arrow{
-    align-self:center;
-    color:var(--border);
-    font-size:20px;
-    flex-shrink:0;
-  }
-  .flow-row.reverse .arrow{transform:scaleX(-1);}
+        .btn-location {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .btn-location:hover { background-color: #1d4ed8; }
 
-  .zone{
-    flex:1;
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:8px;
-    padding:14px 14px 12px;
-    cursor:pointer;
-    position:relative;
-    transition:border-color .15s, transform .15s, background .15s;
-    min-width:0;
-  }
-  .zone:hover{border-color:var(--steel);transform:translateY(-2px);background:var(--panel-2);}
-  .zone-top{display:flex;justify-content:space-between;align-items:flex-start;}
-  .zone-code{
-    font-family:'IBM Plex Mono',monospace;
-    font-weight:700;
-    font-size:17px;
-    letter-spacing:0.5px;
-  }
-  .led{width:9px;height:9px;border-radius:50%;margin-top:4px;flex-shrink:0;box-shadow:0 0 6px currentColor;}
-  .led.ok{background:var(--ok);color:var(--ok);}
-  .led.warn{background:var(--warn);color:var(--warn);}
-  .led.crit{background:var(--crit);color:var(--crit);}
-  .zone-name{
-    font-size:12px;color:var(--muted);
-    margin-top:4px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  .zone-count{
-    margin-top:10px;
-    font-size:11px;
-    font-family:'IBM Plex Mono',monospace;
-    color:var(--muted);
-  }
-  .zone-count b{color:var(--text);}
+        .source-tag {
+            font-size: 0.75rem;
+            background-color: #2563eb;
+            color: #ffffff;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+        }
 
-  /* Overlay + drawer */
-  .overlay{
-    position:fixed;inset:0;
-    background:rgba(0,0,0,0.55);
-    display:none;
-    z-index:50;
-  }
-  .overlay.open{display:block;}
-  .drawer{
-    position:fixed;top:0;right:0;height:100vh;height:100dvh;
-    width:420px;max-width:92vw;
-    background:var(--panel);
-    border-left:1px solid var(--border);
-    z-index:51;
-    display:flex;flex-direction:column;
-    transform:translateX(100%);
-    transition:transform .2s ease;
-  }
-  .drawer.open{transform:translateX(0);}
-  .drawer-head{
-    padding:18px 20px;
-    border-bottom:1px solid var(--border);
-    display:flex;justify-content:space-between;align-items:center;
-  }
-  .drawer-title-input{
-    background:none;border:none;color:var(--text);
-    font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;
-    width:100%;padding:2px 0;border-bottom:1px dashed transparent;
-  }
-  .drawer-title-input:focus{outline:none;border-bottom:1px dashed var(--steel);}
-  .close-btn{
-    background:none;border:1px solid var(--border);color:var(--muted);
-    width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;
-    flex-shrink:0;margin-left:10px;
-  }
-  .close-btn:hover{color:var(--text);border-color:var(--steel);}
+        .weather-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 5px 0 10px 0;
+        }
 
-  .drawer-body{padding:16px 20px;overflow-y:auto;flex:1;}
+        .weather-icon-display {
+            font-size: 3.5rem;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-  .add-form{
-    display:flex;flex-direction:column;gap:8px;
-    background:var(--panel-2);
-    border:1px solid var(--border);
-    border-radius:8px;padding:12px;
-    margin-bottom:18px;
-  }
-  .add-form input[type=text]{
-    background:var(--bg);border:1px solid var(--border);color:var(--text);
-    border-radius:5px;padding:8px 10px;font-size:13px;font-family:'Inter',sans-serif;
-  }
-  .add-form input[type=text]:focus{outline:none;border-color:var(--steel);}
-  .row2{display:flex;gap:8px;}
-  select{
-    background:var(--bg);border:1px solid var(--border);color:var(--text);
-    border-radius:5px;padding:8px 6px;font-size:12px;flex:1;font-family:'Inter',sans-serif;
-  }
-  .add-btn{
-    background:var(--steel);border:none;color:#0e1215;font-weight:600;
-    padding:9px;border-radius:5px;cursor:pointer;font-size:13px;
-    font-family:'Inter',sans-serif;
-  }
-  .add-btn:hover{background:#5a8fac;}
+        .picker-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
 
-  .item{
-    display:flex;align-items:flex-start;gap:10px;
-    padding:10px 8px;
-    border-bottom:1px solid var(--border);
-  }
-  .item.done{opacity:0.45;}
-  .item.done .item-text{text-decoration:line-through;}
-  .checkbox{
-    width:18px;height:18px;border-radius:4px;border:1px solid var(--border);
-    background:var(--bg);cursor:pointer;flex-shrink:0;margin-top:2px;
-    display:flex;align-items:center;justify-content:center;color:var(--ok);font-size:12px;
-  }
-  .item-mid{flex:1;min-width:0;}
-  .item-text{font-size:13.5px;line-height:1.4;word-break:break-word;}
-  .tags{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;}
-  .tag{
-    font-size:10px;font-family:'IBM Plex Mono',monospace;
-    padding:2px 7px;border-radius:20px;letter-spacing:0.3px;text-transform:uppercase;
-  }
-  .tag.tip-zamjena{background:rgba(232,163,61,.15);color:var(--warn);}
-  .tag.tip-popravka{background:rgba(74,124,150,.18);color:var(--steel);}
-  .tag.tip-provjera{background:rgba(69,168,119,.15);color:var(--ok);}
-  .tag.prio-visok{background:rgba(224,85,79,.18);color:var(--crit);}
-  .tag.prio-srednji{background:rgba(232,163,61,.15);color:var(--warn);}
-  .tag.prio-nizak{background:rgba(139,146,153,.15);color:var(--muted);}
-  .del-btn{
-    background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;
-    padding:2px 4px;flex-shrink:0;
-  }
-  .del-btn:hover{color:var(--crit);}
-  .empty{color:var(--muted);font-size:13px;text-align:center;padding:30px 10px;}
+        .picker-wrapper {
+            position: relative;
+            height: 120px;
+            width: 100%;
+            max-width: 180px;
+            margin: 0 auto 15px auto;
+            overflow: hidden;
+            background-color: #f8fafc;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+        }
 
-  .save-note{
-    font-size:11px;color:var(--muted);text-align:center;padding-top:8px;
-  }
+        .picker-wrapper::before,
+        .picker-wrapper::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 40px;
+            z-index: 2;
+            pointer-events: none;
+        }
 
-  @media (max-width:720px){
-    .wrap{padding:18px 14px 40px;}
-    header{align-items:flex-start;padding-bottom:14px;margin-bottom:20px;}
-    h1{font-size:18px;}
-    .flow-row, .flow-row.reverse{flex-direction:column;}
-    .arrow{display:none;}
-    .stats{gap:14px;width:100%;justify-content:space-between;flex-wrap:wrap;}
-    .stat .n{font-size:18px;}
-    .backup-btns{width:100%;margin-left:0;margin-top:10px;}
-    .mini-btn{flex:1;padding:9px 6px;font-size:12px;}
-    .zone{padding:16px 14px;}
-    .zone-code{font-size:16px;}
-    .drawer{width:100%;max-width:100%;}
-    .drawer-head{padding:14px 16px;}
-    .drawer-title-input{font-size:16px;}
-    .drawer-body{padding:14px 16px;}
-    .row2{flex-direction:column;}
-    select{width:100%;padding:11px 10px;font-size:14px;}
-    .add-form input[type=text]{padding:11px 12px;font-size:14px;}
-    .add-btn{padding:12px;font-size:14px;}
-    .checkbox{width:24px;height:24px;font-size:14px;}
-    .del-btn{font-size:19px;padding:4px 8px;}
-    .item{padding:12px 6px;}
-    .close-btn{width:36px;height:36px;font-size:18px;}
-  }
+        .picker-wrapper::before {
+            top: 0;
+            background: linear-gradient(to bottom, rgba(248,250,252,0.95), rgba(248,250,252,0));
+        }
 
-  @media (max-width:400px){
-    .stats{flex-wrap:wrap;}
-  }
+        .picker-wrapper::after {
+            bottom: 0;
+            background: linear-gradient(to top, rgba(248,250,252,0.95), rgba(248,250,252,0));
+        }
 
-  /* PIN lock screen */
-  .lock-screen{
-    position:fixed;inset:0;
-    background:var(--bg);
-    display:flex;align-items:center;justify-content:center;
-    z-index:100;
-    padding:20px;
-  }
-  .lock-screen.hidden{display:none;}
-  .app-hidden{display:none;}
-  .lock-box{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding:36px 30px;
-    text-align:center;
-    width:100%;
-    max-width:320px;
-  }
-  .lock-box h2{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:18px;
-    margin:0 0 4px;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-  }
-  .lock-sub{color:var(--muted);font-size:13px;margin-bottom:22px;}
-  .pin-input{
-    position:absolute;
-    opacity:0;
-    pointer-events:none;
-  }
-  .pin-dots{
-    display:flex;justify-content:center;gap:14px;
-    margin-bottom:18px;
-    cursor:text;
-  }
-  .pin-dots .dot{
-    width:16px;height:16px;
-    border-radius:50%;
-    border:2px solid var(--border);
-    background:transparent;
-    transition:background .12s, border-color .12s;
-  }
-  .pin-dots.filled-1 .dot:nth-child(1),
-  .pin-dots.filled-2 .dot:nth-child(-n+2),
-  .pin-dots.filled-3 .dot:nth-child(-n+3),
-  .pin-dots.filled-4 .dot:nth-child(-n+4){
-    background:var(--steel);border-color:var(--steel);
-  }
-  .pin-dots.shake{animation:shake .35s;}
-  @keyframes shake{
-    0%,100%{transform:translateX(0);}
-    25%{transform:translateX(-8px);}
-    75%{transform:translateX(8px);}
-  }
-  .pin-error{
-    color:var(--crit);font-size:12.5px;
-    visibility:hidden;
-  }
-  .pin-error.show{visibility:visible;}
-</style>
+        .picker-selection-line {
+            position: absolute;
+            top: 40px;
+            height: 40px;
+            left: 8px;
+            right: 8px;
+            background-color: #2563eb;
+            border-radius: 8px;
+            z-index: 1;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .picker-list {
+            height: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding: 40px 0;
+        }
+
+        .picker-list::-webkit-scrollbar { display: none; }
+
+        .picker-item {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #64748b;
+            scroll-snap-align: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            z-index: 3;
+        }
+
+        .picker-item.active {
+            color: #2563eb;
+            font-size: 1.25rem;
+            font-weight: 800;
+        }
+
+        .weather-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .info-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .info-label {
+            font-size: 0.8rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+        }
+
+        .info-value { 
+            font-size: 1.15rem; 
+            font-weight: 800; 
+            color: #0f172a; 
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .trend-arrow { font-size: 1.1rem; font-weight: 900; }
+        .up { color: #ef4444; }
+        .down { color: #2563eb; }
+        .neutral { color: #94a3b8; }
+
+        .wind-arrow {
+            display: inline-block;
+            transition: transform 0.3s ease;
+            color: #2563eb;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .wind-dir-text {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
 </head>
 <body>
 
-<div class="lock-screen" id="lock-screen">
-  <div class="lock-box">
-    <div class="brand-mark" style="margin:0 auto 16px;"></div>
-    <h2>Mapa proizvodnje</h2>
-    <div class="lock-sub">Unesi PIN za pristup</div>
-    <input type="password" id="pin-input" class="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off">
-    <div class="pin-dots" id="pin-dots">
-      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h2>Vremenska Prognoza</h2>
+                <span class="source-tag">Meteoblue AI</span>
+            </div>
+            <div class="controls">
+                <select id="city-select" onchange="promjeniGrad()">
+                    <option value="44.2034,17.9077" selected>Zenica</option>
+                    <option value="43.8563,18.4131">Sarajevo</option>
+                    <option value="44.7722,17.1910">Banja Luka</option>
+                    <option value="44.5384,18.6671">Tuzla</option>
+                    <option value="43.3438,17.8078">Mostar</option>
+                    <option value="44.8169,15.8708">Bihać</option>
+                    <option value="44.7865,16.6681">Sanski Most</option>
+                    <option value="44.8708,18.8100">Brčko</option>
+                    <option value="44.7570,19.2144">Bijeljina</option>
+                    <option value="44.7322,18.0864">Doboj</option>
+                    <option value="44.9575,18.2981">Modriča</option>
+                    <option value="43.6552,17.9576">Konjic</option>
+                    <option value="42.7103,18.3436">Trebinje</option>
+                    <option value="43.8333,17.3000">Livno</option>
+                    <option value="43.9389,17.6658">Travnik</option>
+                    <option value="43.6667,18.9761">Goražde</option>
+                    <option value="45.1447,17.2542">Gradiška</option>
+                    <option value="44.9667,16.7167">Prijedor</option>
+                    <option value="43.6406,17.2736">Tomislavgrad</option>
+                    <option value="44.3414,17.2686">Jajce</option>
+                    <option value="45.1103,15.8322">Velika Kladuša</option>
+                </select>
+                <button class="btn-location" onclick="dajMojaLokacija()" title="Moja Lokacija">📍 Lokacija</button>
+            </div>
+            <div id="error-box" class="error-msg">Greška pri učitavanju podataka.</div>
+        </div>
+
+        <div class="weather-display">
+            <div id="weather-icon" class="weather-icon-display">☀️</div>
+        </div>
+
+        <div class="picker-label">Izaberi Sat</div>
+        <div class="picker-wrapper">
+            <div class="picker-selection-line"></div>
+            <div class="picker-list" id="pickerList" onscroll="handleRollerScroll()"></div>
+        </div>
+
+        <div class="weather-info">
+            <div class="info-card">
+                <div class="info-label">Temperatura</div>
+                <div class="info-value">
+                    <span id="temp-val">-- °C</span>
+                    <span id="temp-arrow" class="trend-arrow neutral">→</span>
+                </div>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-label">Vjetar i Smjer</div>
+                <div class="info-value">
+                    <span id="wind-val">-- km/h</span>
+                    <span id="wind-arrow" class="wind-arrow">↑</span>
+                    <span id="wind-dir" class="wind-dir-text"></span>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-label">Pritisak</div>
+                <div class="info-value">
+                    <span id="pressure-val">-- hPa</span>
+                    <span id="pressure-arrow" class="trend-arrow neutral">→</span>
+                </div>
+            </div>
+        </div>
+
     </div>
-    <div class="pin-error" id="pin-error">Pogrešan PIN, pokušaj ponovo</div>
-  </div>
-</div>
 
-<div id="app" class="app-hidden">
-<div class="wrap">
-  <header>
-    <div class="brand">
-      <div class="brand-mark"></div>
-      <div>
-        <h1>Mapa proizvodnje</h1>
-        <div class="sub">Klikni na zonu da otvoriš check listu</div>
-      </div>
-    </div>
-    <div class="stats">
-      <div class="stat crit"><div class="n" id="stat-crit">0</div><div class="l">Visok prioritet</div></div>
-      <div class="stat warn"><div class="n" id="stat-open">0</div><div class="l">Otvoreno</div></div>
-      <div class="stat ok"><div class="n" id="stat-done">0</div><div class="l">Riješeno</div></div>
-      <div class="backup-btns">
-        <button class="mini-btn" id="export-btn" title="Sačuvaj sve podatke u JSON fajl">Izvoz</button>
-        <button class="mini-btn" id="import-btn" title="Učitaj podatke iz JSON fajla">Uvoz</button>
-        <input type="file" id="import-file" accept="application/json" style="display:none;">
-      </div>
-    </div>
-  </header>
+    <script>
+        const METEOBLUE_KEY = "yPfsxREeDl1FVMXj";
+        let prognozaPodaci = []; 
+        let izabraniIndex = 0;
+        let scrollTimeout;
 
-  <div id="grid"></div>
-  <div class="save-note" id="save-note"></div>
-</div>
-
-<div class="overlay" id="overlay"></div>
-<div class="drawer" id="drawer">
-  <div class="drawer-head">
-    <input class="drawer-title-input" id="drawer-title" type="text" spellcheck="false">
-    <button class="close-btn" id="close-btn">✕</button>
-  </div>
-  <div class="drawer-body">
-    <div class="add-form">
-      <input type="text" id="new-item-text" placeholder="Šta je potrebno uraditi... (npr. zamijeniti senzor)">
-      <div class="row2">
-        <select id="new-item-tip">
-          <option value="popravka">Popravka</option>
-          <option value="zamjena">Zamjena</option>
-          <option value="provjera">Provjera</option>
-        </select>
-        <select id="new-item-prio">
-          <option value="nizak">Nizak prioritet</option>
-          <option value="srednji" selected>Srednji prioritet</option>
-          <option value="visok">Visok prioritet</option>
-        </select>
-      </div>
-      <button class="add-btn" id="add-btn">+ Dodaj stavku</button>
-    </div>
-    <div id="item-list"></div>
-  </div>
-</div>
-</div>
-
-<script>
-const ZONE_COUNT = 14;
-const STORAGE_KEY = 'production-map-data';
-let state = null;
-let currentZone = null;
-
-const PRESET_NAMES = {
-  L1: 'FAAR WE',
-  L2: 'FAAR WE',
-  L3: 'FAAR WE',
-  L4: 'F7X',
-  L5: 'NB5 2W',
-  L6: 'NCAR/FAAR WE',
-  L7: 'INEOS/VANEA 2W',
-  L8: 'MBEAM/CKD',
-  L9: 'NCAR 4W',
-  L10: 'MSP',
-  L11: 'VAN EA MODUL',
-  L12: 'PF',
-  L13: 'VANEA 4W',
-  L14: 'NB5 4W'
-};
-
-function defaultState(){
-  const zones = {};
-  for(let i=1;i<=ZONE_COUNT;i++){
-    const key = 'L'+i;
-    zones[key] = { name: PRESET_NAMES[key] || key, items: [] };
-  }
-  return { zones };
-}
-
-async function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      state = JSON.parse(raw);
-      // ensure all zones exist, and fill in preset names for zones that were never renamed
-      for(let i=1;i<=ZONE_COUNT;i++){
-        const key = 'L'+i;
-        if(!state.zones[key]){
-          state.zones[key] = { name: PRESET_NAMES[key] || key, items: [] };
-        }else if(state.zones[key].name === key && PRESET_NAMES[key]){
-          state.zones[key].name = PRESET_NAMES[key];
+        function dajIkonuVremena(picto) {
+            if (picto === 1) return "☀️";
+            if (picto === 2 || picto === 3) return "🌤️";
+            if (picto >= 4 && picto <= 6) return "☁️";
+            if (picto >= 7 && picto <= 11) return "🌧️";
+            if (picto >= 12 && picto <= 15) return "⛈️";
+            if (picto >= 16) return "❄️";
+            return "🌤️";
         }
-      }
-      return;
-    }
-  }catch(e){ /* no data yet or storage unavailable */ }
-  state = defaultState();
-}
 
-async function saveState(){
-  const note = document.getElementById('save-note');
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    note.textContent = 'Sačuvano';
-    setTimeout(()=>{ if(note.textContent==='Sačuvano') note.textContent=''; }, 1200);
-  }catch(e){
-    note.textContent = 'Greška pri čuvanju — koristi Izvoz da sačuvaš podatke ručno';
-  }
-}
+        function stepeniUSmjer(deg) {
+            const strane = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+            return strane[Math.round(deg / 45) % 8];
+        }
 
-function exportData(){
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,10);
-  a.href = url;
-  a.download = `mapa-proizvodnje-backup-${stamp}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+        async function dajPodatke(lat, lon) {
+            const errorBox = document.getElementById('error-box');
+            errorBox.style.display = 'none';
 
-function importData(file){
-  const reader = new FileReader();
-  reader.onload = (e)=>{
-    try{
-      const parsed = JSON.parse(e.target.result);
-      if(!parsed.zones) throw new Error('invalid');
-      for(let i=1;i<=ZONE_COUNT;i++){
-        const key = 'L'+i;
-        if(!parsed.zones[key]) parsed.zones[key] = { name: PRESET_NAMES[key] || key, items: [] };
-      }
-      state = parsed;
-      renderGrid();
-      saveState();
-      document.getElementById('save-note').textContent = 'Podaci uvezeni';
-    }catch(err){
-      document.getElementById('save-note').textContent = 'Neispravan fajl za uvoz';
-    }
-  };
-  reader.readAsText(file);
-}
+            try {
+                const mbUrl = `https://my.meteoblue.com/packages/basic-1h?lat=${lat}&lon=${lon}&apikey=${METEOBLUE_KEY}&format=json`;
+                const res = await fetch(mbUrl);
+                
+                if (!res.ok) throw new Error("API odziv nije ispravan");
+                
+                const data = await res.json();
 
-function zoneStatus(zone){
-  const open = zone.items.filter(i=>!i.done);
-  if(open.length===0) return 'ok';
-  if(open.some(i=>i.priority==='visok')) return 'crit';
-  return 'warn';
-}
+                if (data && data.data_1h) {
+                    const sada = new Date();
+                    const trenutniSat = sada.getHours();
 
-function renderStats(){
-  let crit=0, open=0, done=0;
-  Object.values(state.zones).forEach(z=>{
-    z.items.forEach(i=>{
-      if(i.done) done++;
-      else{
-        open++;
-        if(i.priority==='visok') crit++;
-      }
-    });
-  });
-  document.getElementById('stat-crit').textContent = crit;
-  document.getElementById('stat-open').textContent = open;
-  document.getElementById('stat-done').textContent = done;
-}
+                    prognozaPodaci = data.data_1h.time.map((t, i) => {
+                        const satTekst = t.split(' ')[1] || (t.includes('T') ? t.split('T')[1] : t);
+                        const satNum = parseInt(satTekst.split(':')[0]);
+                        return {
+                            vreme: satTekst.substring(0, 5),
+                            satNum: satNum,
+                            temp: data.data_1h.temperature[i],
+                            vjetar: data.data_1h.windspeed[i],
+                            smjerVjetra: data.data_1h.winddirection ? data.data_1h.winddirection[i] : 0,
+                            pritisak: data.data_1h.sealevelpressure[i],
+                            picto: data.data_1h.pictocode ? data.data_1h.pictocode[i] : null
+                        };
+                    });
 
-function renderGrid(){
-  const grid = document.getElementById('grid');
-  grid.innerHTML = '';
-  const order = [];
-  for(let i=1;i<=ZONE_COUNT;i++) order.push('L'+i);
+                    let idx = prognozaPodaci.findIndex(p => p.satNum === trenutniSat);
+                    if (idx === -1) idx = 0;
+                    
+                    izgradiRollerSati();
+                    setTimeout(() => skrolujNaIndex(idx), 100);
+                }
+            } catch (err) {
+                console.error("Greška pri učitavanju:", err);
+                errorBox.style.display = 'block';
+            }
+        }
 
-  // snake layout: rows of 5, alternating direction, like a production line
-  const rows = [];
-  for(let i=0;i<order.length;i+=5){
-    rows.push(order.slice(i,i+5));
-  }
+        function izgradiRollerSati() {
+            const list = document.getElementById('pickerList');
+            list.innerHTML = '';
+            
+            prognozaPodaci.forEach((item, i) => {
+                const el = document.createElement('div');
+                el.className = 'picker-item';
+                el.innerText = item.vreme;
+                el.onclick = () => skrolujNaIndex(i);
+                list.appendChild(el);
+            });
+        }
 
-  rows.forEach((rowKeys, rowIdx)=>{
-    const rowEl = document.createElement('div');
-    rowEl.className = 'flow-row' + (rowIdx % 2 === 1 ? ' reverse' : '');
-    rowKeys.forEach((key, idx)=>{
-      const zone = state.zones[key];
-      const st = zoneStatus(zone);
-      const openCount = zone.items.filter(i=>!i.done).length;
-      const zoneEl = document.createElement('div');
-      zoneEl.className = 'zone';
-      zoneEl.innerHTML = `
-        <div class="zone-top">
-          <div class="zone-code">${key}</div>
-          <div class="led ${st}"></div>
-        </div>
-        <div class="zone-name">${escapeHtml(zone.name === key ? 'Bez naziva' : zone.name)}</div>
-        <div class="zone-count"><b>${openCount}</b> otvoreno / ${zone.items.length} ukupno</div>
-      `;
-      zoneEl.addEventListener('click', ()=>openDrawer(key));
-      rowEl.appendChild(zoneEl);
-      if(idx < rowKeys.length-1){
-        const arrow = document.createElement('div');
-        arrow.className = 'arrow';
-        arrow.textContent = '→';
-        rowEl.appendChild(arrow);
-      }
-    });
-    grid.appendChild(rowEl);
-  });
+        function skrolujNaIndex(idx) {
+            const list = document.getElementById('pickerList');
+            const itemHeight = 40;
+            list.scrollTo({
+                top: idx * itemHeight,
+                behavior: 'smooth'
+            });
+            postaviIndex(idx);
+        }
 
-  renderStats();
-}
+        function handleRollerScroll() {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const list = document.getElementById('pickerList');
+                const itemHeight = 40;
+                const newIdx = Math.round(list.scrollTop / itemHeight);
+                if (newIdx !== izabraniIndex && newIdx >= 0 && newIdx < prognozaPodaci.length) {
+                    postaviIndex(newIdx);
+                }
+            }, 60);
+        }
 
-function escapeHtml(s){
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+        function postaviIndex(idx) {
+            izabraniIndex = idx;
+            const list = document.getElementById('pickerList');
+            const items = list.children;
 
-function openDrawer(key){
-  currentZone = key;
-  document.getElementById('drawer-title').value = state.zones[key].name;
-  renderItems();
-  document.getElementById('overlay').classList.add('open');
-  document.getElementById('drawer').classList.add('open');
-  document.getElementById('new-item-text').focus();
-}
+            for (let i = 0; i < items.length; i++) {
+                if (i === idx) {
+                    items[i].classList.add('active');
+                } else {
+                    items[i].classList.remove('active');
+                }
+            }
 
-function closeDrawer(){
-  document.getElementById('overlay').classList.remove('open');
-  document.getElementById('drawer').classList.remove('open');
-  currentZone = null;
-  renderGrid();
-}
+            const podatak = prognozaPodaci[idx];
+            const prethodni = prognozaPodaci[idx - 1] || podatak;
 
-function renderItems(){
-  const list = document.getElementById('item-list');
-  const zone = state.zones[currentZone];
-  if(zone.items.length === 0){
-    list.innerHTML = '<div class="empty">Nema stavki. Dodaj prvu iznad.</div>';
-    return;
-  }
-  // open items first, then done
-  const sorted = [...zone.items].sort((a,b)=> (a.done===b.done)?0:(a.done?1:-1));
-  list.innerHTML = '';
-  sorted.forEach(item=>{
-    const el = document.createElement('div');
-    el.className = 'item' + (item.done ? ' done' : '');
-    el.innerHTML = `
-      <div class="checkbox" data-id="${item.id}">${item.done ? '✓' : ''}</div>
-      <div class="item-mid">
-        <div class="item-text">${escapeHtml(item.text)}</div>
-        <div class="tags">
-          <span class="tag tip-${item.type}">${item.type}</span>
-          <span class="tag prio-${item.priority}">${item.priority}</span>
-        </div>
-      </div>
-      <button class="del-btn" data-id="${item.id}">✕</button>
-    `;
-    list.appendChild(el);
-  });
+            if (podatak) {
+                document.getElementById('weather-icon').innerText = dajIkonuVremena(podatak.picto);
 
-  list.querySelectorAll('.checkbox').forEach(cb=>{
-    cb.addEventListener('click', ()=>toggleItem(cb.dataset.id));
-  });
-  list.querySelectorAll('.del-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>deleteItem(btn.dataset.id));
-  });
-}
+                document.getElementById('temp-val').innerText = `${podatak.temp} °C`;
+                const tempArrow = document.getElementById('temp-arrow');
+                if (podatak.temp > prethodni.temp) {
+                    tempArrow.innerText = "↑";
+                    tempArrow.className = "trend-arrow up";
+                } else if (podatak.temp < prethodni.temp) {
+                    tempArrow.innerText = "↓";
+                    tempArrow.className = "trend-arrow down";
+                } else {
+                    tempArrow.innerText = "→";
+                    tempArrow.className = "trend-arrow neutral";
+                }
 
-function toggleItem(id){
-  const zone = state.zones[currentZone];
-  const item = zone.items.find(i=>i.id===id);
-  if(item){
-    item.done = !item.done;
-    renderItems();
-    saveState();
-  }
-}
+                document.getElementById('wind-val').innerText = `${podatak.vjetar} km/h`;
+                const windArrow = document.getElementById('wind-arrow');
+                const smjerDeg = podatak.smjerVjetra || 0;
+                windArrow.style.transform = `rotate(${smjerDeg}deg)`;
+                document.getElementById('wind-dir').innerText = `(${stepeniUSmjer(smjerDeg)})`;
 
-function deleteItem(id){
-  const zone = state.zones[currentZone];
-  zone.items = zone.items.filter(i=>i.id!==id);
-  renderItems();
-  saveState();
-}
+                document.getElementById('pressure-val').innerText = `${Math.round(podatak.pritisak)} hPa`;
+                const pressureArrow = document.getElementById('pressure-arrow');
+                if (podatak.pritisak > prethodni.pritisak) {
+                    pressureArrow.innerText = "↑";
+                    pressureArrow.className = "trend-arrow up";
+                } else if (podatak.pritisak < prethodni.pritisak) {
+                    pressureArrow.innerText = "↓";
+                    pressureArrow.className = "trend-arrow down";
+                } else {
+                    pressureArrow.innerText = "→";
+                    pressureArrow.className = "trend-arrow neutral";
+                }
+            }
+        }
 
-function addItem(){
-  const textInput = document.getElementById('new-item-text');
-  const text = textInput.value.trim();
-  if(!text) return;
-  const type = document.getElementById('new-item-tip').value;
-  const priority = document.getElementById('new-item-prio').value;
-  const zone = state.zones[currentZone];
-  zone.items.push({
-    id: 'i' + Date.now() + Math.random().toString(36).slice(2,7),
-    text, type, priority, done:false
-  });
-  textInput.value = '';
-  renderItems();
-  saveState();
-  textInput.focus();
-}
+        function dajMojaLokacija() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude.toFixed(4);
+                        const lon = position.coords.longitude.toFixed(4);
+                        
+                        const select = document.getElementById('city-select');
+                        
+                        let found = false;
+                        for (let i = 0; i < select.options.length; i++) {
+                            if (select.options[i].value === `${lat},${lon}`) {
+                                select.selectedIndex = i;
+                                found = true;
+                                break;
+                            }
+                        }
 
-document.getElementById('add-btn').addEventListener('click', addItem);
-document.getElementById('new-item-text').addEventListener('keydown', e=>{
-  if(e.key === 'Enter') addItem();
-});
-document.getElementById('close-btn').addEventListener('click', closeDrawer);
-document.getElementById('overlay').addEventListener('click', closeDrawer);
-document.getElementById('drawer-title').addEventListener('input', e=>{
-  state.zones[currentZone].name = e.target.value || currentZone;
-});
-document.getElementById('drawer-title').addEventListener('blur', ()=>{
-  saveState();
-});
+                        if (!found) {
+                            const newOpt = document.createElement('option');
+                            newOpt.value = `${lat},${lon}`;
+                            newOpt.innerText = "📍 Moja Lokacija";
+                            newOpt.selected = true;
+                            select.appendChild(newOpt);
+                        }
 
-document.getElementById('export-btn').addEventListener('click', exportData);
-document.getElementById('import-btn').addEventListener('click', ()=>{
-  document.getElementById('import-file').click();
-});
-document.getElementById('import-file').addEventListener('change', (e)=>{
-  if(e.target.files[0]) importData(e.target.files[0]);
-  e.target.value = '';
-});
+                        dajPodatke(lat, lon);
+                    },
+                    () => alert("Nije moguće pristupiti lokaciji.")
+                );
+            } else {
+                alert("Geolokacija nije podržana.");
+            }
+        }
 
-const PIN_SALT = 'mapa-proizvodnje-';
-const CORRECT_PIN_HASH = 'ae98d1326521958e8fbf3de8df2c133c4866d617d257d9a9e201a60afe759850';
-let enteredPin = '';
+        function promjeniGrad() {
+            const select = document.getElementById('city-select');
+            const [lat, lon] = select.value.split(',');
+            dajPodatke(lat, lon);
+        }
 
-async function sha256Hex(str){
-  const data = new TextEncoder().encode(str);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-function updatePinDots(){
-  const dots = document.getElementById('pin-dots');
-  dots.className = 'pin-dots' + (enteredPin.length ? ' filled-'+enteredPin.length : '');
-}
-
-async function checkPin(){
-  const hash = await sha256Hex(PIN_SALT + enteredPin);
-  if(hash === CORRECT_PIN_HASH){
-    document.getElementById('lock-screen').classList.add('hidden');
-    const app = document.getElementById('app');
-    app.classList.remove('app-hidden');
-    startApp();
-  }else{
-    const dots = document.getElementById('pin-dots');
-    const err = document.getElementById('pin-error');
-    dots.classList.add('shake');
-    err.classList.add('show');
-    setTimeout(()=>{
-      dots.classList.remove('shake');
-      enteredPin = '';
-      updatePinDots();
-      document.getElementById('pin-input').value = '';
-    }, 350);
-  }
-}
-
-function setupLockScreen(){
-  const pinInput = document.getElementById('pin-input');
-  const dotsWrap = document.getElementById('pin-dots');
-
-  dotsWrap.addEventListener('click', ()=> pinInput.focus());
-  document.getElementById('lock-screen').addEventListener('click', ()=> pinInput.focus());
-  pinInput.focus();
-
-  pinInput.addEventListener('input', ()=>{
-    document.getElementById('pin-error').classList.remove('show');
-    const digits = pinInput.value.replace(/\D/g,'').slice(0,4);
-    pinInput.value = digits;
-    enteredPin = digits;
-    updatePinDots();
-    if(enteredPin.length === 4){
-      pinInput.blur();
-      checkPin();
-    }
-  });
-}
-
-async function startApp(){
-  await loadState();
-  renderGrid();
-}
-
-setupLockScreen();
-
-</script>
+        promjeniGrad();
+    </script>
 
 </body>
 </html>
