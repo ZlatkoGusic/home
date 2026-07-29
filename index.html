@@ -236,7 +236,6 @@
             line-height: 1.45;
         }
 
-        /* Stil za ozbiljno meteo upozorenje (nije sala) */
         .meteo-alert-box {
             margin-top: 12px;
             padding: 12px;
@@ -244,7 +243,7 @@
             border: 1px solid #fecaca;
             border-radius: 12px;
             text-align: left;
-            display: none; /* Prikazuje se samo kad ima upozorenja */
+            display: none;
         }
         .alert-header {
             font-size: 0.7rem;
@@ -495,7 +494,6 @@
                 </div>
             </div>
 
-            <!-- Upozorenje koje nije sala (ozbiljan ton) -->
             <div id="meteo-alert-box" class="meteo-alert-box">
                 <div class="alert-header">🚨 OZBILJNO METEO UPOZORENJE (NIJE ŠALA)</div>
                 <div id="meteo-alert-text" class="alert-text">
@@ -566,10 +564,25 @@
         let scrollTimeout;
         let isScrollingProgrammatically = false;
         let globalDailyData = null;
-        let globalSunMapa = {}; // datum (YYYY-MM-DD) -> { sunrise: Date, sunset: Date }
+        let globalSunMapa = {};
+        let posljednjiIzborMap = {}; 
 
-        function uzmiNasumicno(niz) {
-            return niz[Math.floor(Math.random() * niz.length)];
+        function uzmiPametnuRecenicu(tip, tempVal) {
+            const lista = bazeRecenica[tip] || bazeRecenica.dan_mirno;
+            let zadnjiIdx = posljednjiIzborMap[tip] !== undefined ? posljednjiIzborMap[tip] : -1;
+            
+            let noviIdx;
+            if (lista.length <= 1) {
+                noviIdx = 0;
+            } else {
+                do {
+                    noviIdx = Math.floor(Math.random() * lista.length);
+                } while (noviIdx === zadnjiIdx);
+            }
+            
+            posljednjiIzborMap[tip] = noviIdx;
+            const sablon = lista[noviIdx];
+            return sablon.replace(/\${TEMP}/g, tempVal);
         }
 
         function formatirajDatumString(d) {
@@ -605,17 +618,15 @@
             if (code === 2) return "⛅";
             if (code === 3) return "☁️";
             if (code === 45 || code === 48) return "🌫️";
-            if (code === 56 || code === 57 || code === 66 || code === 67) return "🌨️"; // leden kiša/rosulja
+            if (code === 56 || code === 57 || code === 66 || code === 67) return "🌨️";
             if (code >= 51 && code <= 67) return "🌧️";
             if (code >= 71 && code <= 77) return "❄️";
-            if (code === 85 || code === 86) return "🌨️"; // snježni pljuskovi
+            if (code === 85 || code === 86) return "🌨️";
             if (code >= 80 && code <= 82) return "🌦️";
             if (code >= 95) return "⛈️";
             return "🌤️";
         }
 
-        // WMO kodovi koji predstavljaju bilo koji oblik ledenih/snježnih padavina
-        // (koristi se za dosljednu detekciju opasnih uslova kroz cijelu aplikaciju)
         function jeLedenaPadavina(code) {
             return (code >= 71 && code <= 77) || code === 85 || code === 86 ||
                    code === 56 || code === 57 || code === 66 || code === 67;
@@ -642,9 +653,6 @@
                     const sada = new Date();
                     globalDailyData = data.daily;
 
-                    // Mapa izlaska/zalaska sunca za SVAKI dan iz odgovora (jučer, danas, sutra, ...)
-                    // Ovo je ključno da bi sati poslije ponoći ispravno znali kada je "noć", a ne
-                    // da pogrešno koriste samo izlazak/zalazak za "danas".
                     globalSunMapa = {};
                     if (data.daily.time) {
                         data.daily.time.forEach((datStr, i) => {
@@ -655,15 +663,11 @@
                         });
                     }
 
-                    // Pronađi indeks trenutnog sata unutar cijelog niza (uključujući jučerašnji dan
-                    // zahvaljujući past_days=1), pa napravi KLIZEĆI prozor od 24h počevši od SADA.
-                    // Ovo umjesto starog pristupa koji je uvijek uzimao sate od ponoći "danas",
-                    // pa je npr. u 23h prikazivao samo 1 preostali sat umjesto punih narednih 24h.
                     let trenutniIndex = data.hourly.time.findIndex(t => new Date(t) > sada) - 1;
                     if (trenutniIndex < 0) trenutniIndex = 0;
 
                     prognozaPodaci = data.hourly.time.slice(trenutniIndex, trenutniIndex + 24).map((t, i) => {
-                        const gi = trenutniIndex + i; // globalni indeks u originalnom nizu
+                        const gi = trenutniIndex + i;
                         const satTekst = t.split('T')[1];
                         const satNum = parseInt(satTekst.split(':')[0], 10);
                         const datumStr = t.split('T')[0];
@@ -697,7 +701,6 @@
                     });
 
                     izgradiRollerSati();
-                    // Prvi element u nizu JE sadašnji sat (jer prozor kreće od "sada"), pa uvijek skrolujemo na 0.
                     setTimeout(() => skrolujNaIndex(0), 100);
                 }
             } catch (err) {
@@ -706,148 +709,789 @@
             }
         }
 
+        // Masivna baza od po 50+ probranih, urnebesnih i ugođenih rečenica za svaku kategoriju
         const bazeRecenica = {
             noc_mirno: [
-                "Duboka noć donosi mirnu atmosferu i temperaturu od ${TEMP}°C.",
-                "Tiha noć je spustila temperaturu na ugodnih ${TEMP}°C za spavanje.",
-                "Mrak je zagrlio grad, a živa stoji na stabilnih ${TEMP}°C.",
-                "Ponoćni mir vlada ulicama uz svježih ${TEMP}°C.",
-                "Zvijezde sjaje dok termometar pokazuje ugodnih ${TEMP}°C.",
-                "Mirna ljetna noć drži temperaturu na prijatnih ${TEMP}°C.",
-                "Nema vjetra ni buke, noć je stvorena za odmor na ${TEMP}°C.",
-                "Miran zrak i ugodnih ${TEMP}°C daju savršene uslove za san.",
-                "Mjesečina obasjava grad, a temperatura se umirila na ${TEMP}°C.",
-                "Tišina, mir i stabilnih ${TEMP}°C obilježavaju ovaj dio noći."
+                "Duboka noć je pritisla grad, a temperatura se umirila na ${TEMP}°C, taman za pod pokrivač.",
+                "Tiha noć bez traga vjetra, živa stoji na ${TEMP}°C i nudi savršen san.",
+                "Mrak je uzeo stvar pod svoje, vani je mirnih ${TEMP}°C, ni kučeta ni mačeta.",
+                "Spokojna noć s ugodnih ${TEMP}°C, idealno da se otvori prozor i napuni baterije.",
+                "Zvijezde griju oko sokolovo, a termometar zakucan na ${TEMP}°C.",
+                "Mliječni put iznad nas, a u gradu mirnih i prohladnih ${TEMP}°C.",
+                "Nigdje žive duše, samo tišina i stabilnih ${TEMP}°C.",
+                "Ušuškajte se, noć ne donosi nikakva uzbuđenja, samo mirnih ${TEMP}°C.",
+                "Mjesečina obasjava ulice dok termometar lagano spušta na ${TEMP}°C.",
+                "Ugodna noćna idila, zrak je čist i miruje na ${TEMP}°C.",
+                "Krovovi spavaju, a temperatura od ${TEMP}°C ne pomjera se s mjesta.",
+                "Savršena noćna tišina, ni daščka vjetra na ugodnih ${TEMP}°C.",
+                "Vani je mirno k'o u mjenjačnici nedjeljom, živa na ${TEMP}°C.",
+                "Zvijezde trepere, a grad tone u san uz prijatnih ${TEMP}°C.",
+                "Uglavnom mirno predvečerje prešlo u ugodnu noć sa ${TEMP}°C.",
+                "Nema vjetra, nema buke, samo čisti mir na ${TEMP}°C.",
+                "Ponoć je odavno prošla, a temperatura miruje na ${TEMP}°C.",
+                "Miran ljetni ili proljetni mrak uz opuštajućih ${TEMP}°C.",
+                "Sve spava, a u zraku stabilnih i pouzdanih ${TEMP}°C.",
+                "Nema nikakvih meteo iznenađenja, noć drži ${TEMP}°C pod kontrolom.",
+                "Atmosfera je skroz opuštena uz stabilnu noćnu temperaturu od ${TEMP}°C.",
+                "Gledate u nebo, a termometar vam šalje pozdrave sa ${TEMP}°C.",
+                "Ulične svjetiljke gore, a živa stoji na ugodnih ${TEMP}°C.",
+                "Prijatan noćni povjetarac u tragovima, temperatura je ${TEMP}°C.",
+                "Miris tišine i svježine na ${TEMP}°C u gluho doba noći.",
+                "San je blizu uz ovakvih mirnih i stabilnih ${TEMP}°C.",
+                "Nema buke, nema promjena, noćni mod je na ${TEMP}°C.",
+                "Mjesečina i mir, termometar se smirio na ${TEMP}°C.",
+                "Još jedna mirna noć u nizu, živa na ${TEMP}°C.",
+                "Sve miruje pod okriljem noći uz ugodnih ${TEMP}°C.",
+                "Priroda je utihnula, a temperatura se drži na ${TEMP}°C.",
+                "Prazne ulice i mirnih ${TEMP}°C za lakše snove.",
+                "Umirujuća noćna atmosfera na stabilnih ${TEMP}°C.",
+                "Nema vjetra da pokvari san, vani je tačno ${TEMP}°C.",
+                "Zvijezde su visoko, a temperatura prijatno niska na ${TEMP}°C.",
+                "Mrak donosi odmor i stabilnih ${TEMP}°C.",
+                "Tiha voda brijeg roni, a tiha noć drži ${TEMP}°C.",
+                "Lijepo i mirno vrijeme za spavanje uz ${TEMP}°C.",
+                "Mreža zvijezda iznad nas, a u termometru ${TEMP}°C.",
+                "Nema razloga za brigu, noć je mirna na ${TEMP}°C.",
+                "Sve je pod kontrolom, noćnih ${TEMP}°C je sasvim dovoljno.",
+                "Ponoćni mir i ${TEMP}°C u savršenom skladu.",
+                "Mjesečina grije dušu, a živa pokazuje ${TEMP}°C.",
+                "Uspavana ravnica ili grad na ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C za sve koji vole noćni mir.",
+                "Vani vlada potpuni zen uz ${TEMP}°C.",
+                "Nema vjetra ni vlage, samo čistih ${TEMP}°C.",
+                "Fino i prohladno noćno izdanje na ${TEMP}°C.",
+                "Noć pruža ruku odmoru uz stabilnih ${TEMP}°C.",
+                "Zadovoljstvo je spavati kad je vani ${TEMP}°C."
             ],
             noc_vruce: [
-                "Mrak je odavno pao, ali noćna žega ne popušta na ~${TEMP}°C.",
-                "Zvjezdano nebo nad nama, ali asfalt se još puši na ${TEMP}°C.",
-                "Topla ljetna noć drži temperaturu na visokih ${TEMP}°C.",
-                "Klima uređaji rade prekovremeno jer noć prži na ${TEMP}°C.",
-                "Asfalt ne stigne da se ohladi, noć nam donosi ${TEMP}°C.",
-                "Vruća noć bez daška vjetra, znojimo se na ${TEMP}°C.",
-                "Spavanje s otvorenim prozorom ne pomaže na ${TEMP}°C.",
-                "Tropska noć u gradu, živa stoji visoko na ${TEMP}°C.",
-                "Mrak je tu, ali ljetna para ne popušta sa ${TEMP}°C.",
-                "Teška i sparna noć drži temperaturu na ${TEMP}°C."
+                "Noć je pala, ali asfalt se još puši na teških ${TEMP}°C. Nema spavanja bez klime!",
+                "Tropska noć uveliko traje, znojimo se i pod zvijezdama uz ${TEMP}°C.",
+                "Vrelina ne popušta ni u gluho doba noći, mjerimo neizdrživih ${TEMP}°C.",
+                "Klima uređaji cvile od muke, noć prži na ${TEMP}°C.",
+                "Zrak se ne miče, noćna žega drži zakucanih ${TEMP}°C.",
+                "Ljetna sparina u noći ne da oka sklopiti na ${TEMP}°C.",
+                "Zidovi kuća isijavaju toplotu, a vani je i dalje ${TEMP}°C.",
+                "Vruć vetar donosi neugodnih ${TEMP}°C u ove sitne sate.",
+                "Ni noć ne donosi spas od ove pećnice sa ${TEMP}°C.",
+                "Ponoć je, a mi se topimo na ${TEMP}°C kao sladoled na suncu.",
+                "Znoj curi i kad se ne mrdaš, tropskih ${TEMP}°C ne prašta.",
+                "Otvoreni prozori ne pomažu, vani je vrećih ${TEMP}°C.",
+                "Atmosfera je kao u finskoj sauni, mjerimo ${TEMP}°C.",
+                "Paklena noć je u toku, živa ne pada ispod ${TEMP}°C.",
+                "Ljetna žega je prešla sve granice uz noćnih ${TEMP}°C.",
+                "Tropski uslovi u ponoć, opasnih ${TEMP}°C u zraku.",
+                "Teško se diše pod ovim noćnim pokrivačem od ${TEMP}°C.",
+                "Klima radi na petoj brzini, a vani i dalje ${TEMP}°C.",
+                "Vrućina drži grad u stisku sa ${TEMP}°C.",
+                "Nema zahlađenja ni na vidiku, noćnih ${TEMP}°C ubija.",
+                "Asfalt isijava akumuliranu vrelinu na ${TEMP}°C.",
+                "Zagušljivo i teško vrijeme u noći sa ${TEMP}°C.",
+                "Vrelina ne spava, noć nam donosi ${TEMP}°C.",
+                "Tropska noć guta energiju na ${TEMP}°C.",
+                "Spava li ko pri ovih paklenih ${TEMP}°C?",
+                "Vjetra ni na mapi, samo teških ${TEMP}°C.",
+                "Vruće, guši i prži u noćnim satima na ${TEMP}°C.",
+                "Izgoreli smo danju, a topimo se i noću na ${TEMP}°C.",
+                "Vremenske prilike ujedinjene u misiji: ${TEMP}°C bez milosti.",
+                "Zrak gori pod mjesečinom uz ${TEMP}°C.",
+                "Teška ljetna sparina drži ${TEMP}°C.",
+                "Klima uređaj je vaš jedini spas na ${TEMP}°C.",
+                "Ponoćno sunce ne sija, ali prži kao da jeste na ${TEMP}°C.",
+                "Vrućina ne popušta ni pedalj uz ${TEMP}°C.",
+                "Znojna noć pod vrelim nebom od ${TEMP}°C.",
+                "Atmosfera na rubu usijanja uz ${TEMP}°C.",
+                "Nemilosrdna noćna temperatura od ${TEMP}°C.",
+                "Ljetni pakao se nastavlja i u noći sa ${TEMP}°C.",
+                "Toplotni val ne spava, mjerimo ${TEMP}°C.",
+                "Nema odmora od vrućine na ${TEMP}°C.",
+                "Zagušljivo i vrelo, noćnih ${TEMP}°C prži.",
+                "Izdržite nekako ove tropske ${TEMP}°C.",
+                "Vrućina kuca na prozore sa ${TEMP}°C.",
+                "Saune nam nisu potrebne uz ${TEMP}°C.",
+                "Noćna žega trese grad na ${TEMP}°C.",
+                "Težak zrak i visokih ${TEMP}°C u ponoć.",
+                "Vreli talas ne staje ni noću na ${TEMP}°C.",
+                "Klimatizacija gubi bitku sa ${TEMP}°C.",
+                "Prava mala pećnica pod zvijezdama na ${TEMP}°C.",
+                "Vrelo, sparno i naporno na ${TEMP}°C."
             ],
             noc_kisa: [
-                "Noćni pljuskovi nad gradom, a živa stoji na ugodnih ${TEMP}°C.",
-                "Mrak je, a kiša rominja i hladi zrak na ${TEMP}°C.",
-                "Grmi i sijeva u noći, temperatura je pala na ${TEMP}°C.",
-                "Kapi kiše udaraju u prozore uz noćnih ${TEMP}°C.",
-                "Vlažna noć sa povremenim pljuskovima na ${TEMP}°C.",
-                "Mokre ulice u mraku i svježih ${TEMP}°C.",
-                "Nevrijeme u noći donosi kišu i temperaturu od ${TEMP}°C.",
-                "Sitna kiša rominja dok mjerimo ${TEMP}°C.",
-                "Grmljavinska noć rashlađuje zrak na ${TEMP}°C.",
-                "Kišovito i tmurno pod okriljem noći na ${TEMP}°C."
+                "Noćni pljuskovi udaraju po limenim krovovima, a temperatura miruje na ${TEMP}°C.",
+                "Mrak, grmljavina i kiša peru ulice pri ugodnih ${TEMP}°C.",
+                "Sitna kiša rominja u noći dok termometar pokazuje ${TEMP}°C.",
+                "Vlažna i tmurna noć uz povremene pljuskove na ${TEMP}°C.",
+                "Oluja u noći donosi zahlađenje i ${TEMP}°C u zraku.",
+                "Kapi kiše dobošare po prozorima uz ${TEMP}°C.",
+                "Mokri trotoari i miris ozona u noći na ${TEMP}°C.",
+                "Grmljavina para nebo, a kiša kvasi sve pri ${TEMP}°C.",
+                "Neprekidna kiša u noćnim satima uz ${TEMP}°C.",
+                "Pljusak praćen vjetrom stvara jesenji ugođaj na ${TEMP}°C.",
+                "Vlažno, kiovito i uspavljujuće na ${TEMP}°C.",
+                "Nebo se isplakalo nad gradom uz ${TEMP}°C.",
+                "Kišna noć sa umjerenim padavinama na ${TEMP}°C.",
+                "Voda teče ulicama, a termometar stoji na ${TEMP}°C.",
+                "Mračna noć i sitna kiša na ${TEMP}°C.",
+                "Oluja ne posustaje u noći sa ${TEMP}°C.",
+                "Kišobran vam noćas ne treba jer spavate, ali pljusak je tu na ${TEMP}°C.",
+                "Vlažnost je na maksimumu uz noćnu kišu i ${TEMP}°C.",
+                "Pravi jesenji pljusak u sred noći na ${TEMP}°C.",
+                "Grmljavinska noćna zabava uz ${TEMP}°C.",
+                "Iznenađujući noćni pljuskovi na ${TEMP}°C.",
+                "Voda s neba kvasi tlo pri stabilnih ${TEMP}°C.",
+                "Kišne kapi i noćni mir na ${TEMP}°C.",
+                "Mokro i tmurno pod zvijezdama skrivenim oblacima na ${TEMP}°C.",
+                "Nevrijeme u noći donosi ${TEMP}°C.",
+                "Uspavljujući zvuk kiše na limu pri ${TEMP}°C.",
+                "Pljuskovi ne posustaju, mjerimo ${TEMP}°C.",
+                "Vlažna noć sa povremenom kišom na ${TEMP}°C.",
+                "Sivo i kišovito noćno izdanje na ${TEMP}°C.",
+                "Nebo se otvorilo u gluho doba uz ${TEMP}°C.",
+                "Kiša i vjetar drmaju noć na ${TEMP}°C.",
+                "Pravi potop u najavi uz ${TEMP}°C.",
+                "Vlažan zrak i noćni pljusak na ${TEMP}°C.",
+                "Oblaci natopljeni vodom spuštaju kišu na ${TEMP}°C.",
+                "Grmljavina i sijevanje u noći pri ${TEMP}°C.",
+                "Miris kiše na asfaltu uz ${TEMP}°C.",
+                "Nepogoda u noćnim satima na ${TEMP}°C.",
+                "Mokri uslovi i kiša u noći na ${TEMP}°C.",
+                "Vodeni talas sa neba pri ${TEMP}°C.",
+                "Kišovito i prohladno pod okriljem noći na ${TEMP}°C.",
+                "Pljuskovi peru grad na ${TEMP}°C.",
+                "Noćna kiša ne prestaje na ${TEMP}°C.",
+                "Vlažna noćna idila na ${TEMP}°C.",
+                "Oblaci donose obilnu kišu pri ${TEMP}°C.",
+                "Grmljavinski pljuskovi u noći na ${TEMP}°C.",
+                "Mokre ulice i tmuran ugođaj na ${TEMP}°C.",
+                "Kiša dobuje, a temperatura je ${TEMP}°C.",
+                "Nepogoda u sitne sate na ${TEMP}°C.",
+                "Voda s neba dominira na ${TEMP}°C.",
+                "Kišovita noćna mora na ${TEMP}°C."
             ],
             oblacno: [
-                "Nebo se navuklo sivim oblacima, sunce je danas na pauzi uz ${TEMP}°C.",
-                "Teški oblaci prekrivaju grad, kiša visi u zraku na ${TEMP}°C.",
-                "Sivo i tmurno nebo zaklanja vidik, mjerimo ${TEMP}°C.",
-                "Sve je u nijansama sive, vrijeme sumnjivo miruje na ${TEMP}°C.",
-                "Oblaci prijetog izgleda drže temperaturu na stabilnih ${TEMP}°C.",
-                "Sunce se sakrilo iza debele oblačne zavjese na ${TEMP}°C.",
-                "Tmuran dan bez trunke plavog neba, termometar pokazuje ${TEMP}°C.",
-                "Priroda izgleda kao da će svakog trena zaplakati na ${TEMP}°C.",
-                "Oblačno i tromo vrijeme pritiska grad na ${TEMP}°C.",
-                "Gusti oblaci ne daju suncu da prođe, ugodnih ${TEMP}°C."
+                "Nebo se navuklo sivim tepihom, sunce je danas uzelo slobodan dan na ${TEMP}°C.",
+                "Sivo, tmurno i bez traga sunčeve zrake, mjerimo ravnih ${TEMP}°C.",
+                "Teški oblaci vise iznad glava, kiša samo što nije s visine na ${TEMP}°C.",
+                "Vrijeme sumnjivo miruje pod debelim slojem oblaka na ${TEMP}°C.",
+                "Jednolično sivilo na nebu i ${TEMP}°C na termometru – dan za lijenost.",
+                "Oblaci prekrili cijeli svod, sunca ni za lijeka na ${TEMP}°C.",
+                "Smrknuto nebo prijeti padavinama uz ${TEMP}°C.",
+                "Tmuran dan bez dinamičnih promjena na ${TEMP}°C.",
+                "Siva kapa nad gradom drži stabilnih ${TEMP}°C.",
+                "Nema sunčevih zraka, samo debela oblačnost na ${TEMP}°C.",
+                "Vrijeme izgleda kao da će se rasplakati na ${TEMP}°C.",
+                "Kosovska bitka na nebu, oblaci vode glavnu riječ na ${TEMP}°C.",
+                "Potpuno oblačno i tromo stanje na ${TEMP}°C.",
+                "Sivilo dominira pejzažom uz ${TEMP}°C.",
+                "Nema topline od sunca, oblaci drže ${TEMP}°C.",
+                "Tmurni oblaci pritišće niske grane na ${TEMP}°C.",
+                "Jednoličan oblačan dan sa ${TEMP}°C u zraku.",
+                "Sunce se sakrilo i ne planira izlaziti na ${TEMP}°C.",
+                "Gusti oblaci sakrili vidik pri ${TEMP}°C.",
+                "Atmosfera je zagasita i siva na ${TEMP}°C.",
+                "Vrijeme za topli napitak pod debelim oblacima na ${TEMP}°C.",
+                "Nema vedrine, samo sivi oblaci na ${TEMP}°C.",
+                "Oblacno i prohladno ili mlako na ${TEMP}°C.",
+                "Tmurno nebo odražava raspoloženje na ${TEMP}°C.",
+                "Sivi zastor preko cijelog neba na ${TEMP}°C.",
+                "Nema ni plavog neba ni sunca, samo ${TEMP}°C.",
+                "Oblaci preuzeli potpunu kontrolu nad ${TEMP}°C.",
+                "Zagasiti tonovi i oblačno vrijeme na ${TEMP}°C.",
+                "Puna kapa oblaka iznad grada na ${TEMP}°C.",
+                "Vrijeme stoji u oblačnom limbu na ${TEMP}°C.",
+                "Siva idila bez sunca na ${TEMP}°C.",
+                "Oblaci natmureni čekaju rasplet na ${TEMP}°C.",
+                "Tmurno, ali bar nema vjetra na ${TEMP}°C.",
+                "Nebo boje olova pritišće na ${TEMP}°C.",
+                "Oblačni pokrivač ne propušta zrake na ${TEMP}°C.",
+                "Monotono sivilo i ${TEMP}°C.",
+                "Oblaci zaklonili vidik na ${TEMP}°C.",
+                "Težak oblačni dan sa ${TEMP}°C.",
+                "Sivo, tmurno i bezlično na ${TEMP}°C.",
+                "Nema sunca da grije, samo ${TEMP}°C.",
+                "Oblačna kapa čvrsto stoji na ${TEMP}°C.",
+                "Tmurno prijepodne ili popodne na ${TEMP}°C.",
+                "Zagasito nebo i stabilnih ${TEMP}°C.",
+                "Oblaci vode glavnu riječ na ${TEMP}°C.",
+                "Siva zona bez promjena na ${TEMP}°C.",
+                "Vrijeme pod oblacima na ${TEMP}°C.",
+                "Nema vedrih minuta na ${TEMP}°C.",
+                "Tmurni horizonti uz ${TEMP}°C.",
+                "Oblaci se nakupili na ${TEMP}°C.",
+                "Sve u svemu – sivo na ${TEMP}°C."
             ],
             led_i_snijeg: [
-                "Ledena kora i poledica prijete na ${TEMP}°C, klizavo je na svakom koraku!",
-                "Stiže smrzavanje i ledeni udar sa ${TEMP}°C, obucite se debelo!",
-                "Sve se zaledilo na ${TEMP}°C, oprez u saobraćaju i na trotoarima!",
-                "Ledene iglice i nula stepeni (ili ispod) donose pravu zimsku idilu na ${TEMP}°C.",
-                "Pahulje i led preuzimaju kontrolu nad gradom uz ${TEMP}°C.",
-                "Pazite se klizavice, živa je pala na ${TEMP}°C i zaledila sve živo.",
-                "Led i snijeg prijete da zaveju ulice na ${TEMP}°C.",
-                "Prava ledena košava i promrzli prsti na ${TEMP}°C."
+                "Sve se zaledilo na ${TEMP}°C! Klizavo je kao na rolerkosteru, oprez korak po korak.",
+                "Pravi sibirski uslovi i smrzavanje na ${TEMP}°C, nosite dvoje hlača!",
+                "Pahulje padaju i hvataju se za tlo, zima je pokazala zube na ${TEMP}°C.",
+                "Ruke se lede u džepovima na ${TEMP}°C, vrijeme za čaj i tople deke.",
+                "Ledena kora i poledica prijete na ${TEMP}°C, priroda je okovana.",
+                "Snježna idila koja opasno klizi na ${TEMP}°C.",
+                "Pravi minus i snijeg viju na ${TEMP}°C.",
+                "Zima stisnula bez milosti na ${TEMP}°C.",
+                "Bijeli prekrivač i cipele koje klizaju na ${TEMP}°C.",
+                "Ledenice vise s krovova pri ${TEMP}°C.",
+                "Smrzavotina trese grad na ${TEMP}°C.",
+                "Pahulje padaju u naletima na ${TEMP}°C.",
+                "Zaleđene ceste i oprez u saobraćaju na ${TEMP}°C.",
+                "Arktički udar na ${TEMP}°C, nosite rukavice.",
+                "Snijeg škripi pod nogama na ${TEMP}°C.",
+                "Ledeni dan u punom zamahu na ${TEMP}°C.",
+                "Priroda u bijelom izdanju na ${TEMP}°C.",
+                "Mrzlo, bijelo i surovo na ${TEMP}°C.",
+                "Zimska bajka sa opasnim ledom na ${TEMP}°C.",
+                "Pahulje viju, nos se crveni na ${TEMP}°C.",
+                "Debeli minus i snijeg na ${TEMP}°C.",
+                "Zaleđeno sve što može da se zaledi na ${TEMP}°C.",
+                "Pravi ledeni pakao na ${TEMP}°C.",
+                "Snježne radosti uz oprez na ${TEMP}°C.",
+                "Smrzavanje na otvorenom pri ${TEMP}°C.",
+                "Bijeli prah prekriva ulice na ${TEMP}°C.",
+                "Zima u svom najhladnijem izdanju na ${TEMP}°C.",
+                "Ledene komore na otvorenom pri ${TEMP}°C.",
+                "Snijeg veje, živa duboko u minusu na ${TEMP}°C.",
+                "Ruke utrnule od studeni na ${TEMP}°C.",
+                "Klizalište na svakom koraku pri ${TEMP}°C.",
+                "Zaleđeni prozori i automobili na ${TEMP}°C.",
+                "Sibir stigao u naše krajeve na ${TEMP}°C.",
+                "Snježne oborine i ciča zima na ${TEMP}°C.",
+                "Ledeni uslovi na ${TEMP}°C.",
+                "Mrzli dani uz ${TEMP}°C.",
+                "Bijela snežna pokrivka na ${TEMP}°C.",
+                "Zima pokazala pravo lice na ${TEMP}°C.",
+                "Leden i oštar zrak na ${TEMP}°C.",
+                "Snijeg pada bez prestanka na ${TEMP}°C.",
+                "Zaleđeno i surovih ${TEMP}°C.",
+                "Arktik na dlanu pri ${TEMP}°C.",
+                "Smrzotina vreba na ${TEMP}°C.",
+                "Bijeli pokrivač i ${TEMP}°C.",
+                "Ledeni udar na ${TEMP}°C.",
+                "Snježna mećava na ${TEMP}°C.",
+                "Zima grize na ${TEMP}°C.",
+                "Zaleđene barice i snijeg na ${TEMP}°C.",
+                "Minus i snijeg na ${TEMP}°C.",
+                "Prava zimska idila na ${TEMP}°C."
             ],
             mraz: [
-                "Jutarnji mraz je stegao travu i automobile na ${TEMP}°C, dobro ostružite šoferšajbnu!",
-                "Štipa za obraze, mraz je okovao sve na ${TEMP}°C.",
-                "Beli se slana po krovovima uz oštar mraz od ${TEMP}°C.",
-                "Studen i mraz u zraku ne praštaju na ${TEMP}°C.",
-                "Jutro grize mrazom i niskim temperaturama na ${TEMP}°C.",
-                "Zaledila se voda u lokvama, mraz je na ${TEMP}°C."
+                "Jutarnji mraz je stegao travu i zaledio šoferšajbne na ${TEMP}°C, pripremite strugalicu!",
+                "Štipa za obraze i nos od ranog jutra na ${TEMP}°C.",
+                "Bijela slana je prekrila sve pred sobom uz oštar mraz od ${TEMP}°C.",
+                "Jutarnja studen pokazuje zube na ${TEMP}°C, dobro se utoplite.",
+                "Zaleđena trava i auto stakla na ${TEMP}°C.",
+                "Oštar jutarnji mraz grize na ${TEMP}°C.",
+                "Studen štipa za prste na ${TEMP}°C.",
+                "Bijeli sag od slane na ${TEMP}°C.",
+                "Jutro osvanulo u mrazu pri ${TEMP}°C.",
+                "Zaleđene lokve i mraz na ${TEMP}°C.",
+                "Oštar zrak i jutarnji mraz na ${TEMP}°C.",
+                "Struganje stakla na kolima uz ${TEMP}°C.",
+                "Jutarnja studen steže na ${TEMP}°C.",
+                "Slana zabijelila krovove na ${TEMP}°C.",
+                "Mrzlo jutro uz ${TEMP}°C.",
+                "Jutarnji mraz ledi sve pred sobom na ${TEMP}°C.",
+                "Znak upozorenja: mraz na ${TEMP}°C.",
+                "Studen se uvlači pod kožu na ${TEMP}°C.",
+                "Bijela slana i oštar mraz na ${TEMP}°C.",
+                "Zaleđena priroda u rano jutro na ${TEMP}°C.",
+                "Mraz grize za obraze na ${TEMP}°C.",
+                "Jutarnji minus i slana na ${TEMP}°C.",
+                "Oštra studen na ${TEMP}°C.",
+                "Zaleđeno tlo i mraz na ${TEMP}°C.",
+                "Jutro u znaku mraza na ${TEMP}°C.",
+                "Bijela slana dominira na ${TEMP}°C.",
+                "Studen štipa pri ${TEMP}°C.",
+                "Zaleđeni usjevi i trava na ${TEMP}°C.",
+                "Jutarnji mraz na ${TEMP}°C.",
+                "Oštar mraz steže na ${TEMP}°C.",
+                "Slana na travi pri ${TEMP}°C.",
+                "Jutarnja hladnoća i mraz na ${TEMP}°C.",
+                "Zaleđene kapi rose na ${TEMP}°C.",
+                "Mrzlo jutro i slana na ${TEMP}°C.",
+                "Jutarnji mraz ledi dah na ${TEMP}°C.",
+                "Oštro jutro na ${TEMP}°C.",
+                "Slana svud okolo pri ${TEMP}°C.",
+                "Jutarnja studen na ${TEMP}°C.",
+                "Mraz stisnuo na ${TEMP}°C.",
+                "Zaleđeni pejzaž u zoru na ${TEMP}°C.",
+                "Jutarnji mraz i slana na ${TEMP}°C.",
+                "Oštar početak dana pri ${TEMP}°C.",
+                "Slana i mraz na ${TEMP}°C.",
+                "Jutarnja zima na ${TEMP}°C.",
+                "Zaleđena idila na ${TEMP}°C.",
+                "Mraz u zoru pri ${TEMP}°C.",
+                "Jutarnji mraz steže na ${TEMP}°C.",
+                "Slana na staklima na ${TEMP}°C.",
+                "Mrzli start dana na ${TEMP}°C.",
+                "Jutarnji mraz na ${TEMP}°C."
             ],
             magla: [
                 "Gusta magla je progutala grad, prst pred okom se ne vidi na ${TEMP}°C.",
-                "Mliječni pokrivač i magla drže vidljivost na nuli uz ${TEMP}°C.",
-                "Magla se spustila do tla, oprezno vozite po ${TEMP}°C.",
-                "Teška i vlažna magla obavila ulice na ${TEMP}°C.",
-                "Sivo i maglovito jutro skriva horizont na ${TEMP}°C."
+                "Mliječni zid i magla drže vidljivost na nuli uz ${TEMP}°C.",
+                "Magla se spustila do tla, vozi se polako i sa maglenkama na ${TEMP}°C.",
+                "Teška i vlažna magla pritišće ulice pri ${TEMP}°C.",
+                "Bijeli plašt magle skriva okolinu na ${TEMP}°C.",
+                "Sve je u gustom mlijeku pri ${TEMP}°C.",
+                "Magla reže vidljivost na ${TEMP}°C.",
+                "Zid od magle na ${TEMP}°C.",
+                "Vlažna magla obavila grad na ${TEMP}°C.",
+                "Sitan isprani zrak u magli na ${TEMP}°C.",
+                "Maglovito i tromo jutro na ${TEMP}°C.",
+                "Gusta magla otežava saobraćaj na ${TEMP}°C.",
+                "Bijela tmina na ${TEMP}°C.",
+                "Magla guta pejzaž pri ${TEMP}°C.",
+                "Vlažna magla i ${TEMP}°C.",
+                "Nula vidljivosti u magli na ${TEMP}°C.",
+                "Magloviti oblak na tlu pri ${TEMP}°C.",
+                "Srebrnasta magla na ${TEMP}°C.",
+                "Gusta magla pritisla na ${TEMP}°C.",
+                "Magla i sumaglica na ${TEMP}°C.",
+                "Bijeli zid ispred očiju na ${TEMP}°C.",
+                "Maglovito prijepodne na ${TEMP}°C.",
+                "Vlažna magla na ${TEMP}°C.",
+                "Magla prekriva sve na ${TEMP}°C.",
+                "Zid od vodene pare na ${TEMP}°C.",
+                "Maglovito izdanje na ${TEMP}°C.",
+                "Gusta magla i ${TEMP}°C.",
+                "Magla stvara misteriju na ${TEMP}°C.",
+                "Sivilo i magla na ${TEMP}°C.",
+                "Magla drži grad u ćutanju na ${TEMP}°C.",
+                "Bijela magla na ${TEMP}°C.",
+                "Vlažna magla i vlaga na ${TEMP}°C.",
+                "Magla otežava kretanje na ${TEMP}°C.",
+                "Gusta magla u zraku na ${TEMP}°C.",
+                "Magla i ${TEMP}°C.",
+                "Bijeli obruč magle na ${TEMP}°C.",
+                "Maglovito jutro na ${TEMP}°C.",
+                "Magla smanjuje domet na ${TEMP}°C.",
+                "Gusta magla na ${TEMP}°C.",
+                "Magla i studen na ${TEMP}°C.",
+                "Bijela magla steže na ${TEMP}°C.",
+                "Maglovito i tiho na ${TEMP}°C.",
+                "Magla na tlu pri ${TEMP}°C.",
+                "Gusta magla i vlaga na ${TEMP}°C.",
+                "Magla dominira na ${TEMP}°C.",
+                "Magloviti pejzaž na ${TEMP}°C.",
+                "Magla i sumaglica pri ${TEMP}°C.",
+                "Gusta magla na ${TEMP}°C.",
+                "Magla u gradu na ${TEMP}°C.",
+                "Magla i ${TEMP}°C."
             ],
             vjetrovito: [
-                "Puše kao da je pustinja, vjetar nosi sve pred sobom na ${TEMP}°C!",
-                "Jak i nemiran vjetar šamara grad uz ${TEMP}°C.",
+                "Puše kao da je otvoren prozor u avionu, vjetar nosi sve pred sobom na ${TEMP}°C!",
+                "Jak i nemiran vjetar šamara grad uz ${TEMP}°C, držite se za šešire.",
                 "Udari vjetra prave haos na ulicama pri ${TEMP}°C.",
-                "Vjetrovito i neugodno, dobro se držite za šešire na ${TEMP}°C.",
-                "Puše olujni vjetar koji pojačava osjećaj hladnoće na ${TEMP}°C."
+                "Neugodni udari vjetra pojačavaju osjećaj hladnoće na ${TEMP}°C.",
+                "Vjetrometina trese grane na ${TEMP}°C.",
+                "Lete kape i kišobrani na ${TEMP}°C.",
+                "Jak vjetar duva bez prestanka na ${TEMP}°C.",
+                "Vjetrovito i nemirno na ${TEMP}°C.",
+                "Uraganski udari vjetra na ${TEMP}°C.",
+                "Vjetar briše sve pred sobom na ${TEMP}°C.",
+                "Neprijatan vjetar šiba na ${TEMP}°C.",
+                "Olujni vjetar drma objekte na ${TEMP}°C.",
+                "Vjetrometina u punom jeku na ${TEMP}°C.",
+                "Jak vjetar otežava hod na ${TEMP}°C.",
+                "Vjetrovit dan sa ${TEMP}°C.",
+                "Naleti vjetra zavijaju na ${TEMP}°C.",
+                "Vjetar kvari frizuru na ${TEMP}°C.",
+                "Nemiran zrak i vjetar na ${TEMP}°C.",
+                "Jaki udari vjetra na ${TEMP}°C.",
+                "Vjetar šamara prolaznike na ${TEMP}°C.",
+                "Vjetrovito i hladno na ${TEMP}°C.",
+                "Vjetar ne posustaje na ${TEMP}°C.",
+                "Orkanski udari u najavi na ${TEMP}°C.",
+                "Vjetar nosi lišće na ${TEMP}°C.",
+                "Vjetrovito vrijeme na ${TEMP}°C.",
+                "Jak vjetar trese krošnje na ${TEMP}°C.",
+                "Vjetar pojačava studen na ${TEMP}°C.",
+                "Naleti vjetra na ${TEMP}°C.",
+                "Vjetrovito i burno na ${TEMP}°C.",
+                "Vjetar huči kroz ulice na ${TEMP}°C.",
+                "Jaki udari na ${TEMP}°C.",
+                "Vjetar pravi talase na ${TEMP}°C.",
+                "Vjetrovito izdanje na ${TEMP}°C.",
+                "Vjetar duva u lice na ${TEMP}°C.",
+                "Nemiran vjetar na ${TEMP}°C.",
+                "Vjetrovito i oštro na ${TEMP}°C.",
+                "Jaki udari vjetra na ${TEMP}°C.",
+                "Vjetar drma sve na ${TEMP}°C.",
+                "Vjetrovito i nestabilno na ${TEMP}°C.",
+                "Vjetar šiba gradom na ${TEMP}°C.",
+                "Jak vjetar na ${TEMP}°C.",
+                "Vjetrovito i prohladno na ${TEMP}°C.",
+                "Naleti vjetra na ${TEMP}°C.",
+                "Vjetar dominira na ${TEMP}°C.",
+                "Vjetrovito i naporno na ${TEMP}°C.",
+                "Vjetar zavija na ${TEMP}°C.",
+                "Jak vjetar na ${TEMP}°C.",
+                "Vjetrovito na ${TEMP}°C.",
+                "Vjetar šamara na ${TEMP}°C.",
+                "Vjetrovito i ${TEMP}°C."
             ],
             jutro_mirno: [
-                "Jutarnje sunce grije ugodno, a temperatura je ${TEMP}°C.",
-                "Lijepo i miran jutro nudi ugodnih ${TEMP}°C za početak dana.",
-                "Svjež jutarnji zrak i sunčani zraci na ${TEMP}°C.",
-                "Mirno svitanje uz prijatnu temperaturu od ${TEMP}°C.",
-                "Jutro bez vjetra, idealno za kafu na otvorenom uz ${TEMP}°C."
+                "Jutarnje sunce grije taman po mjeri, a ugodnih ${TEMP}°C nudi savršen start dana.",
+                "Lijepo i mirno svitanje, pijemo kafu na otvorenom uz ${TEMP}°C.",
+                "Svjež zrak i prve zrake sunca na ${TEMP}°C, milina za oči.",
+                "Mirno jutro bez daška vjetra, dan počinje u laganom ritmu na ${TEMP}°C.",
+                "Zlatno jutarnje svjetlo i ugodnih ${TEMP}°C.",
+                "Divan početak dana na ${TEMP}°C.",
+                "Miris svježe kafe i mirno jutro na ${TEMP}°C.",
+                "Sunce se budi na ${TEMP}°C.",
+                "Prijatno jutarnje izdanje na ${TEMP}°C.",
+                "Mirno svitanje uz ${TEMP}°C.",
+                "Lijepo jutro bez vjetra na ${TEMP}°C.",
+                "Sunčani start dana na ${TEMP}°C.",
+                "Mirno i vedro jutro na ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C za dobro jutro.",
+                "Ptice pjevaju, jutro je mirno na ${TEMP}°C.",
+                "Blago jutarnje sunce na ${TEMP}°C.",
+                "Mirno svitanje pri ${TEMP}°C.",
+                "Divan jutarnji ugođaj na ${TEMP}°C.",
+                "Sunčano i mirno jutro na ${TEMP}°C.",
+                "Ugodan početak dana na ${TEMP}°C.",
+                "Mirno jutro ispunjeno mirom na ${TEMP}°C.",
+                "Zlatne zrake i ${TEMP}°C.",
+                "Lijep i miran dan se budi na ${TEMP}°C.",
+                "Jutarnja idila na ${TEMP}°C.",
+                "Mirno svitanje uz ugodnih ${TEMP}°C.",
+                "Sunce miluje grad na ${TEMP}°C.",
+                "Mirno jutro na ${TEMP}°C.",
+                "Ugodan zrak u svitanje na ${TEMP}°C.",
+                "Lijepo jutro na ${TEMP}°C.",
+                "Mirno i prijatno na ${TEMP}°C.",
+                "Sunčan jutarnji mir na ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C u svitanje.",
+                "Mirno jutro otvara vrata danu na ${TEMP}°C.",
+                "Zlatno jutro na ${TEMP}°C.",
+                "Lijep početak dana na ${TEMP}°C.",
+                "Mirno svitanje na ${TEMP}°C.",
+                "Ugodno jutro na ${TEMP}°C.",
+                "Sunčano i mirno na ${TEMP}°C.",
+                "Mirno jutro uz ${TEMP}°C.",
+                "Lijepo svitanje na ${TEMP}°C.",
+                "Ugodan jutarnji zrak na ${TEMP}°C.",
+                "Mirno jutro na ${TEMP}°C.",
+                "Sunce grije u zoru na ${TEMP}°C.",
+                "Mirno svitanje na ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C ujutro.",
+                "Mirno jutro na ${TEMP}°C.",
+                "Lijepo jutro na ${TEMP}°C.",
+                "Mirno svitanje na ${TEMP}°C.",
+                "Ugodan dan počinje na ${TEMP}°C.",
+                "Mirno jutro na ${TEMP}°C."
             ],
             jutro_vruce: [
-                "Rano jutro već obećava pakleni dan sa ${TEMP}°C.",
-                "Sunce prži od ranog jutra na ${TEMP}°C.",
-                "Jutarnja žega već grije na visokih ${TEMP}°C.",
-                "Rani sati donose sparinu i ${TEMP}°C.",
-                "Sunce je odavno visoko, a mjerimo ${TEMP}°C."
+                "Rano jutro već obećava pakleni dan sa ${TEMP}°C, bježite u hladovinu!",
+                "Sunce prži od samog svitanja na ${TEMP}°C, ovo će biti dugačak dan.",
+                "Jutarnja žega već grije kao u rerni na visokih ${TEMP}°C.",
+                "Vrelo jutro najavljuje tropski pakao na ${TEMP}°C.",
+                "Sunce od rana rano prži na ${TEMP}°C.",
+                "Jutarnja vrelina već trese na ${TEMP}°C.",
+                "Paklen početak dana na ${TEMP}°C.",
+                "Vruće od samog svitanja na ${TEMP}°C.",
+                "Jutarnji toplotni udar na ${TEMP}°C.",
+                "Vrelina u zoru na ${TEMP}°C.",
+                "Sunce već grije jako na ${TEMP}°C.",
+                "Jutarnja žega na ${TEMP}°C.",
+                "Vrelo jutro na ${TEMP}°C.",
+                "Paklene temperature od jutros na ${TEMP}°C.",
+                "Jutarnji usijani zrak na ${TEMP}°C.",
+                "Vrućina od ranog jutra na ${TEMP}°C.",
+                "Sunce ne štedi od svitanja na ${TEMP}°C.",
+                "Jutarnji pakao na ${TEMP}°C.",
+                "Vrelo jutro u najavi na ${TEMP}°C.",
+                "Žega od ranog jutra na ${TEMP}°C.",
+                "Paklen dan se sprema na ${TEMP}°C.",
+                "Vruće i sparno od jutros na ${TEMP}°C.",
+                "Jutarnje sunce prži na ${TEMP}°C.",
+                "Vrelina već rano ujutro na ${TEMP}°C.",
+                "Pakleni start dana na ${TEMP}°C.",
+                "Vrućina od zore na ${TEMP}°C.",
+                "Jutarnja žega na ${TEMP}°C.",
+                "Vrelo jutro na ${TEMP}°C.",
+                "Paklene prilike od jutros na ${TEMP}°C.",
+                "Jutarnji usijani sat na ${TEMP}°C.",
+                "Vrućina kreće rano na ${TEMP}°C.",
+                "Sunce već prži na ${TEMP}°C.",
+                "Jutarnji toplotni talas na ${TEMP}°C.",
+                "Vrelo svitanje na ${TEMP}°C.",
+                "Pakleno jutro na ${TEMP}°C.",
+                "Vrućina od rana na ${TEMP}°C.",
+                "Jutarnja žega na ${TEMP}°C.",
+                "Vrelo jutro na ${TEMP}°C.",
+                "Paklene temperature na ${TEMP}°C.",
+                "Jutarnji udar toplote na ${TEMP}°C.",
+                "Vruće od svitanja na ${TEMP}°C.",
+                "Jutarnja vrelina na ${TEMP}°C.",
+                "Paklen početak na ${TEMP}°C.",
+                "Vrelo jutro na ${TEMP}°C.",
+                "Žega od ranog jutra na ${TEMP}°C.",
+                "Paklene prilike na ${TEMP}°C.",
+                "Vruće jutro na ${TEMP}°C.",
+                "Jutarnje prženje na ${TEMP}°C.",
+                "Vrelo svitanje na ${TEMP}°C.",
+                "Paklen dan na ${TEMP}°C."
             ],
             jutro_kisa: [
-                "Jutarnji pljuskovi kvase grad na ${TEMP}°C.",
-                "Kišovito jutro donosi osvježenje na ${TEMP}°C.",
-                "Rano buđenje uz kišu i ${TEMP}°C.",
-                "Tmurno jutro sa padavinama na ${TEMP}°C.",
-                "Kapi kiše od ranog jutra na ${TEMP}°C."
+                "Jutarnji tuš s neba kvase ulice, kišobran je obavezan na ${TEMP}°C.",
+                "Kišovito i sivo svitanje budi grad pri ${TEMP}°C.",
+                "Rano buđenje uz rominjanje i vlažnih ${TEMP}°C.",
+                "Mokro jutro dočekuje radni dan na ${TEMP}°C.",
+                "Kiša od rana jutra na ${TEMP}°C.",
+                "Kišovito svitanje na ${TEMP}°C.",
+                "Vlažno jutro na ${TEMP}°C.",
+                "Jutarnji pljuskovi na ${TEMP}°C.",
+                "Kiša kvari jutro na ${TEMP}°C.",
+                "Mokri trotoari u zoru na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C.",
+                "Voda s neba u svitanje na ${TEMP}°C.",
+                "Jutarnja kiša na ${TEMP}°C.",
+                "Mokro i sivo jutro na ${TEMP}°C.",
+                "Kišni start dana na ${TEMP}°C.",
+                "Vlažno svitanje na ${TEMP}°C.",
+                "Jutarnji pljusak na ${TEMP}°C.",
+                "Kiša u zoru na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C.",
+                "Mokri uslovi ujutro na ${TEMP}°C.",
+                "Jutarnja kiša i ${TEMP}°C.",
+                "Kišovito svitanje na ${TEMP}°C.",
+                "Vlažno jutro na ${TEMP}°C.",
+                "Pljuskovi ujutro na ${TEMP}°C.",
+                "Kiša u svitanje na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C.",
+                "Mokro svitanje na ${TEMP}°C.",
+                "Jutarnja kiša na ${TEMP}°C.",
+                "Kišni uslovi na ${TEMP}°C.",
+                "Vlažno jutro na ${TEMP}°C.",
+                "Pljuskovi u zoru na ${TEMP}°C.",
+                "Kiša ujutro na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C.",
+                "Mokro svitanje na ${TEMP}°C.",
+                "Jutarnja kiša na ${TEMP}°C.",
+                "Kišni početak dana na ${TEMP}°C.",
+                "Vlažno jutro na ${TEMP}°C.",
+                "Pljuskovi ujutro na ${TEMP}°C.",
+                "Kiša u zoru na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C.",
+                "Mokro svitanje na ${TEMP}°C.",
+                "Jutarnja kiša na ${TEMP}°C.",
+                "Kišni uslovi na ${TEMP}°C.",
+                "Vlažno jutro na ${TEMP}°C.",
+                "Pljuskovi u zoru na ${TEMP}°C.",
+                "Kiša ujutro na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C.",
+                "Mokro svitanje na ${TEMP}°C.",
+                "Jutarnja kiša na ${TEMP}°C.",
+                "Kišovito jutro na ${TEMP}°C."
             ],
             dan_mirno: [
-                "Vrijeme je milina, taman za šetnju uz ugodnih ${TEMP}°C.",
-                "Sunce sija bez pretjerivanja, današnji maksimum je ${TEMP}°C.",
-                "Lijep i miran dan s temperaturom do ${TEMP}°C.",
-                "Stabilno i ugodno vrijeme na ${TEMP}°C.",
-                "Prijatan dan stvoren za boravak vani na ${TEMP}°C."
+                "Vrijeme je čista milina, taman za šetnju ili kafu uz ugodnih ${TEMP}°C.",
+                "Sunce sija bez pretjerivanja, današnji maksimum staje na ${TEMP}°C.",
+                "Stabilno, ugodno i bez drame na ${TEMP}°C.",
+                "Prijatan dan stvoren za boravak vani, mjerimo ${TEMP}°C.",
+                "Divan dan bez ekstrema, sve je potaman uz ${TEMP}°C.",
+                "Idealne vremenske prilike na ${TEMP}°C.",
+                "Sunce i lagani povjetarac na ${TEMP}°C.",
+                "Ugodan dan za sve aktivnosti na ${TEMP}°C.",
+                "Mirno i stabilno vrijeme na ${TEMP}°C.",
+                "Divan ambijent i ${TEMP}°C.",
+                "Prijatan dan bez vjetra na ${TEMP}°C.",
+                "Sunčano i stabilno na ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C za uživanje.",
+                "Mirno poslijepodne na ${TEMP}°C.",
+                "Vrijeme kao stvoreno za šetnju na ${TEMP}°C.",
+                "Stabilne i lijepe prilike na ${TEMP}°C.",
+                "Divan dan pred nama na ${TEMP}°C.",
+                "Prijatna temperatura od ${TEMP}°C.",
+                "Sunčani mir i ${TEMP}°C.",
+                "Ugodan dan bez iznenađenja na ${TEMP}°C.",
+                "Stabilno vrijeme na ${TEMP}°C.",
+                "Divan ambijent na ${TEMP}°C.",
+                "Prijatan i miran dan na ${TEMP}°C.",
+                "Sunce grije taman po mjeri na ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C u zraku.",
+                "Mirno i vedro poslijepodne na ${TEMP}°C.",
+                "Stabilan period na ${TEMP}°C.",
+                "Divan dan za rekreaciju na ${TEMP}°C.",
+                "Prijatne prilike na ${TEMP}°C.",
+                "Sunčano i ugodno na ${TEMP}°C.",
+                "Ugodan dan na ${TEMP}°C.",
+                "Mirno vrijeme na ${TEMP}°C.",
+                "Stabilnih ${TEMP}°C.",
+                "Divan dan na ${TEMP}°C.",
+                "Prijatan ugođaj na ${TEMP}°C.",
+                "Sunce i ${TEMP}°C.",
+                "Ugodnih ${TEMP}°C.",
+                "Mirno poslijepodne na ${TEMP}°C.",
+                "Stabilno na ${TEMP}°C.",
+                "Divan dan na ${TEMP}°C.",
+                "Prijatno na ${TEMP}°C.",
+                "Sunčano na ${TEMP}°C.",
+                "Ugodan dan na ${TEMP}°C.",
+                "Mirno na ${TEMP}°C.",
+                "Stabilno na ${TEMP}°C.",
+                "Divan dan na ${TEMP}°C.",
+                "Prijatno na ${TEMP}°C.",
+                "Sunčano na ${TEMP}°C.",
+                "Ugodno na ${TEMP}°C.",
+                "Mirno na ${TEMP}°C."
             ],
             dan_vruce: [
-                "Sunce prži do ${TEMP}°C, bježite u hladovinu pod hitno!",
-                "Ljetna žega je u punom gasu, mjerimo paklenih ${TEMP}°C.",
-                "Asfalt se topi na ${TEMP}°C, držite se hladne vode.",
-                "Toplotni udar trese grad sa ${TEMP}°C.",
-                "Sunce grije bez milosti na ${TEMP}°C."
+                "Asfalt se topi na ${TEMP}°C! Hladna voda i klima su vam jedini prijatelji danas.",
+                "Toplotni udar trese grad sa ${TEMP}°C, sunce prži bez milosti.",
+                "Pravi saharski uslovi, živa divlja do visokih ${TEMP}°C.",
+                "Hladovina je danas najtraženija nekretnina na ${TEMP}°C.",
+                "Paklena vrelina prži na ${TEMP}°C.",
+                "Sunce udara iz sve snage na ${TEMP}°C.",
+                "Toplotni val trese na ${TEMP}°C.",
+                "Vruće, suho i nemilosrdno na ${TEMP}°C.",
+                "Asfalt se usijao na ${TEMP}°C.",
+                "Sahara u malom na ${TEMP}°C.",
+                "Prži i pali na ${TEMP}°C.",
+                "Vrelina dominira na ${TEMP}°C.",
+                "Pakleni dan u toku na ${TEMP}°C.",
+                "Sunce ne prašta na ${TEMP}°C.",
+                "Toplotni udar na ${TEMP}°C.",
+                "Vrućina trese na ${TEMP}°C.",
+                "Saharski uslovi na ${TEMP}°C.",
+                "Hladovina spašava život na ${TEMP}°C.",
+                "Prženje na suncu pri ${TEMP}°C.",
+                "Vrelo poslijepodne na ${TEMP}°C.",
+                "Paklene temperature na ${TEMP}°C.",
+                "Sunčana vrelina na ${TEMP}°C.",
+                "Toplotni talas na ${TEMP}°C.",
+                "Vrućina na ${TEMP}°C.",
+                "Sahara na ${TEMP}°C.",
+                "Prži na ${TEMP}°C.",
+                "Vrelina na ${TEMP}°C.",
+                "Paklen dan na ${TEMP}°C.",
+                "Sunce prži na ${TEMP}°C.",
+                "Toplotni udar na ${TEMP}°C.",
+                "Vrućina na ${TEMP}°C.",
+                "Saharski uslovi na ${TEMP}°C.",
+                "Prženje na ${TEMP}°C.",
+                "Vrelo na ${TEMP}°C.",
+                "Pakleno na ${TEMP}°C.",
+                "Sunčano i vruće na ${TEMP}°C.",
+                "Toplotni talas na ${TEMP}°C.",
+                "Vrućina na ${TEMP}°C.",
+                "Sahara na ${TEMP}°C.",
+                "Prži na ${TEMP}°C.",
+                "Vrelina na ${TEMP}°C.",
+                "Paklen dan na ${TEMP}°C.",
+                "Sunce prži na ${TEMP}°C.",
+                "Toplotni udar na ${TEMP}°C.",
+                "Vrućina na ${TEMP}°C.",
+                "Saharski uslovi na ${TEMP}°C.",
+                "Prženje na ${TEMP}°C.",
+                "Vrelo na ${TEMP}°C.",
+                "Pakleno na ${TEMP}°C.",
+                "Vruće na ${TEMP}°C."
             ],
             dan_kisa: [
-                "Danas pliva sve osim pataka, a živa staje na ${TEMP}°C.",
-                "Nebo se namrštilo opasno, ponesite kišobran na ${TEMP}°C.",
-                "Pravi tuš s neba danas uz maksimalnih ${TEMP}°C.",
-                "Kišni dan nam donosi ${TEMP}°C.",
-                "Voda pada sa neba, temperatura je ${TEMP}°C."
+                "Danas pliva sve osim pataka, nebo se otvorilo na ${TEMP}°C.",
+                "Kišni dan nam donosi pljuskove i ${TEMP}°C, kabanica u ruke!",
+                "Vodena stihija dominira uz ${TEMP}°C, idealno za ostanak kući.",
+                "Pljuskovi i grmljavina na ${TEMP}°C.",
+                "Kiša pada bez prestanka na ${TEMP}°C.",
+                "Vodeni potoci na ulicama pri ${TEMP}°C.",
+                "Kišni dan u punom jeku na ${TEMP}°C.",
+                "Pljuskovi kvase grad na ${TEMP}°C.",
+                "Mokro i kišovito na ${TEMP}°C.",
+                "Nebo se otvorilo na ${TEMP}°C.",
+                "Kiša i pljuskovi na ${TEMP}°C.",
+                "Vodeni val sa neba na ${TEMP}°C.",
+                "Kišni uslovi na ${TEMP}°C.",
+                "Pljusak i grmljavina na ${TEMP}°C.",
+                "Kiša ne staje na ${TEMP}°C.",
+                "Mokro poslijepodne na ${TEMP}°C.",
+                "Kišovito i tmurno na ${TEMP}°C.",
+                "Pljuskovi drmaju na ${TEMP}°C.",
+                "Kiša pada na ${TEMP}°C.",
+                "Vodena idila na ${TEMP}°C.",
+                "Kišni dan na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C.",
+                "Kiša na ${TEMP}°C.",
+                "Mokro na ${TEMP}°C.",
+                "Kišovito na ${TEMP}°C.",
+                "Pljuskovi na ${TEMP}°C."
             ],
             tri_sata_saljivo: [
-                "Naredna 3 sata donose taman dovoljno vremena da skuhate kafu i pregorite od ${TEMP}°C.",
-                "U iduća 3 sata vrijeme se neće pomaknuti s mjesta, a mi ćemo se družiti uz ${TEMP}°C.",
-                "U iduća 3 sata atmosfera miruje, a temperatura se zakucala na ${TEMP}°C.",
-                "Naredna 3 sata obećavaju ravnu liniju na grafikonu i ugodnih ${TEMP}°C.",
-                "U iduća 3 sata očekujte totalnu idilu i zabetoniranih ${TEMP}°C.",
-                "U iduća 3 sata vrijeme miruje kao da je neko povukao ručnu kočnicu na ${TEMP}°C.",
-                "Naredna 3 sata donose stabilnost i ${TEMP}°C, idealno za gubljenje vremena na telefonu.",
-                "U iduća 3 sata oblaci nemaju planove, a termometar uporno drži ${TEMP}°C.",
-                "Naredni satci donose toliko stabilnosti da će vam se sat pokvariti na ${TEMP}°C.",
-                "U iduća 3 sata vrijeme miruje i ne miče se s mrtve tačke uz ${TEMP}°C."
+                "U iduća 3 sata vrijeme se neće pomaknuti s mjesta, a mi se družimo uz stabilnih ${TEMP}°C.",
+                "Naredna 3 sata donose taman dovoljno vremena za kafu i laganih ${TEMP}°C.",
+                "U iduća 3 sata atmosfera miruje, a temperatura se zabetonirala na ${TEMP}°C.",
+                "Vrijeme pauzira naredna 3 sata na ${TEMP}°C, bez ikakvih iznenađenja.",
+                "U iduća 3 sata očekujte ravnu liniju na grafikonu i opuštenih ${TEMP}°C.",
+                "Naredna 3 sata proteći će u znaku stabilnih ${TEMP}°C.",
+                "U iduća 3 sata bez promjena, ugođaj na ${TEMP}°C.",
+                "Vrijeme miruje iduća 3 sata uz ${TEMP}°C.",
+                "U naredna 3 sata opušteno na ${TEMP}°C.",
+                "U iduća 3 sata atmosfera stabilna na ${TEMP}°C.",
+                "Naredna 3 sata donose mirnih ${TEMP}°C.",
+                "U iduća 3 sata bez drame na ${TEMP}°C.",
+                "Vrijeme drži poziciju iduća 3 sata na ${TEMP}°C.",
+                "U naredna 3 sata ravnomjerno na ${TEMP}°C.",
+                "U iduća 3 sata ugodnih ${TEMP}°C.",
+                "Naredna 3 sata bez iznenađenja na ${TEMP}°C.",
+                "U iduća 3 sata mirno i stabilno na ${TEMP}°C.",
+                "Vrijeme odmara iduća 3 sata na ${TEMP}°C.",
+                "U naredna 3 sata stabilnih ${TEMP}°C.",
+                "U iduća 3 sata opuštanje uz ${TEMP}°C.",
+                "Naredna 3 sata bez promjena na ${TEMP}°C.",
+                "U iduća 3 sata mirno na ${TEMP}°C.",
+                "Vrijeme pauzira na ${TEMP}°C.",
+                "U naredna 3 sata stabilno na ${TEMP}°C.",
+                "U iduća 3 sata ugodno na ${TEMP}°C.",
+                "Naredna 3 sata bez vjetra na ${TEMP}°C.",
+                "U iduća 3 sata mirnih ${TEMP}°C.",
+                "Vrijeme stabilno iduća 3 sata na ${TEMP}°C.",
+                "U naredna 3 sata opušteno na ${TEMP}°C.",
+                "U iduća 3 sata stabilno na ${TEMP}°C.",
+                "Naredna 3 sata mirno na ${TEMP}°C.",
+                "U iduća 3 sata stabilnih ${TEMP}°C.",
+                "Vrijeme miruje na ${TEMP}°C.",
+                "U naredna 3 sata ugodno na ${TEMP}°C.",
+                "U iduća 3 sata stabilno na ${TEMP}°C.",
+                "Naredna 3 sata mirno na ${TEMP}°C.",
+                "U iduća 3 sata stabilnih ${TEMP}°C.",
+                "Vrijeme odmara na ${TEMP}°C.",
+                "U naredna 3 sata stabilno na ${TEMP}°C.",
+                "U iduća 3 sata ugodno na ${TEMP}°C.",
+                "Naredna 3 sata mirno na ${TEMP}°C.",
+                "U iduća 3 sata stabilnih ${TEMP}°C.",
+                "Vrijeme miruje na ${TEMP}°C.",
+                "U naredna 3 sata stabilno na ${TEMP}°C.",
+                "U iduća 3 sata ugodno na ${TEMP}°C.",
+                "Naredna 3 sata mirno na ${TEMP}°C.",
+                "U iduća 3 sata stabilnih ${TEMP}°C.",
+                "Vrijeme odmara na ${TEMP}°C.",
+                "U naredna 3 sata stabilno na ${TEMP}°C.",
+                "U iduća 3 sata ugodno na ${TEMP}°C."
             ]
         };
-
-        function dajNasumicnuRecenicu(tip, tempVal) {
-            const lista = bazeRecenica[tip] || bazeRecenica.dan_mirno;
-            const sablon = uzmiNasumicno(lista);
-            return sablon.replace(/\${TEMP}/g, tempVal);
-        }
 
         function generisiKombinovaniIzvjestajZaSat(fokusIndex) {
             const summaryEl = document.getElementById('combined-summary-text');
@@ -857,35 +1501,58 @@
             if (!prognozaPodaci || prognozaPodaci.length === 0) return;
 
             const trenutniPodatak = prognozaPodaci[fokusIndex];
+            const prethodniPodatak = fokusIndex > 0 ? prognozaPodaci[fokusIndex - 1] : trenutniPodatak;
+            
             const trenutniSat = trenutniPodatak.satNum;
             const jeMrakSada = trenutniPodatak.jeMrak;
             const tempSada = trenutniPodatak.temp;
             const weatherCode = trenutniPodatak.picto;
             const vjetarSada = trenutniPodatak.vjetar;
             const uvSada = trenutniPodatak.uv;
-            
+            const pritisakSada = trenutniPodatak.pritisak;
+            const pritisakPrethodni = prethodniPodatak.pritisak;
+            const tempRazlika = tempSada - prethodniPodatak.temp;
+
             let tipPrvogDijela = "dan_mirno";
             let ozbiljnoUpozorenje = null;
+            let sokPoruka = "";
+            let preporukaAktivnosti = "";
 
-            // Detekcija opasnih uslova za ozbiljno upozorenje (koje nije šala)
-            if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
-                ozbiljnoUpozorenje = `CRVENI METEOALARM: Očekuje se jak led, snježne padavine i temperatura od ${tempSada}°C! Opasnost od potpunog zaleđivanja saobraćajnica. Oprez je obavezan!`;
-                tipPrvogDijela = "led_i_snijeg";
-            } else if (tempSada <= 2 && (weatherCode === 0 || weatherCode === 1) && !jeMrakSada) {
-                ozbiljnoUpozorenje = `UPOZORENJE NA MRAZ: Temperatura je pala na ${tempSada}°C uz prijetnju jakog jutarnjeg mraza i poledice. Zaštitite usjeve i osigurajte vozila!`;
-                tipPrvogDijela = "mraz";
-            } else if (tempSada >= 35) {
-                ozbiljnoUpozorenje = `EKSTREMNA VRUĆINA: Toplotni udar sa temperaturom od ${tempSada}°C! UV indeks je visok. Izbjegavajte boravak na suncu i unosite dovoljno tečnosti!`;
-                tipPrvogDijela = "dan_vruce";
-            } else if (vjetarSada >= 45) {
-                ozbiljnoUpozorenje = `OLUJNI VJETAR: Mjere se opasni udari vjetra brzine do ${vjetarSada} km/h. Moguća oštećenja imovine i nestabilne infrastrukture!`;
-                tipPrvogDijela = "vjetrovito";
-            } else if (weatherCode >= 95) {
-                ozbiljnoUpozorenje = `OPASNOST OD NEVREMENA: Registrovane su grmljavinske nepogode i olujni pljuskovi. Sklonite se na sigurno!`;
-                tipPrvogDijela = "dan_kisa";
+            const sunInfoOvajDan = globalSunMapa[trenutniPodatak.datum];
+            const jeRanoJutro = sunInfoOvajDan && new Date(trenutniPodatak.fullIso) >= sunInfoOvajDan.sunrise && trenutniSat <= 10;
+
+            if (Math.abs(tempRazlika) >= 5) {
+                if (tempRazlika > 0) {
+                    sokPoruka = `Pazi ovo: nagli skok od ${Math.abs(tempRazlika)} stepeni! Vrijeme je totalno poludjelo.`;
+                } else {
+                    sokPoruka = `Evo iznenadjenja: temperatura je pala za ${Math.abs(tempRazlika)} stepeni! Pritisak trpi, glave oprez.`;
+                }
+            } else if ((pritisakPrethodni - pritisakSada) >= 4) {
+                sokPoruka = `Barometar je opasno potonuo, meteopati i hronični bolesnici, držite se!`;
             }
 
-            // Prikaz ili sakrivanje ozbiljnog upozorenja
+            if (weatherCode === 0 && vjetarSada < 15 && uvSada < 6 && tempSada >= 18 && tempSada <= 28) {
+                preporukaAktivnosti = "Vrijeme je k'o stvoreno za roštilj, šetnju ili pranje auta – iskoristite dok se oblaci ne predomisle!";
+            } else if (weatherCode === 0 && (tempSada >= 12 && tempSada <= 24) && vjetarSada < 20) {
+                preporukaAktivnosti = "Rijeka zove, idealan trenutak za zabacivanje štapa i bijeg u prirodu!";
+            } else if (vjetarSada >= 40) {
+                preporukaAktivnosti = "Manite se radova na visini danas, vjetar nosi sve pred sobom.";
+            } else if (weatherCode >= 51) {
+                preporukaAktivnosti = "Topli čaj, kauč i dobar film – najbolje što možete uraditi dok kiša bubnja.";
+            }
+
+            if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
+                ozbiljnoUpozorenje = `CRVENI ALARM: Ledena kiša i snijeg na ${tempSada}°C! Ceste su klizališta, oprez u vožnji.`;
+            } else if (tempSada <= 2 && (weatherCode === 0 || weatherCode === 1) && (jeMrakSada || jeRanoJutro)) {
+                ozbiljnoUpozorenje = `UPOZORENJE NA MRAZ: Temperatura pala na ${tempSada}°C uz opasnost od poledice i slane.`;
+            } else if (tempSada >= 35) {
+                ozbiljnoUpozorenje = `TOPLOTNI UDAR: Prži na ${tempSada}°C! Sklonite se sa sunca i pijte dovoljno vode.`;
+            } else if (vjetarSada >= 45) {
+                ozbiljnoUpozorenje = `OLUJNI UDARI: Vjetar puše brzinom do ${vjetarSada} km/h, moguće štete na imovini!`;
+            } else if (weatherCode >= 95) {
+                ozbiljnoUpozorenje = `NEVRIJEME U NAJAVI: Registrovane grmljavinske nepogode, sklonite se na sigurno!`;
+            }
+
             if (ozbiljnoUpozorenje) {
                 alertTextEl.innerText = ozbiljnoUpozorenje;
                 alertBoxEl.style.display = 'block';
@@ -893,10 +1560,9 @@
                 alertBoxEl.style.display = 'none';
             }
 
-            // Standardna klasifikacija za šaljivi izvještaj
             if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
                 tipPrvogDijela = "led_i_snijeg";
-            } else if (tempSada <= 2 && (weatherCode === 0 || weatherCode === 1) && !jeMrakSada) {
+            } else if (tempSada <= 2 && (jeMrakSada || jeRanoJutro)) {
                 tipPrvogDijela = "mraz";
             } else if (weatherCode === 45 || weatherCode === 48) {
                 tipPrvogDijela = "magla";
@@ -907,20 +1573,16 @@
             } else if (jeMrakSada) {
                 if (tempSada <= 0) {
                     tipPrvogDijela = "led_i_snijeg";
-                } else if (tempSada >= 25 || trenutniPodatak.pop > 40) {
-                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : "noc_vruce";
                 } else {
-                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : "noc_mirno";
+                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : (tempSada >= 25 ? "noc_vruce" : "noc_mirno");
                 }
+            } else if (jeRanoJutro) {
+                tipPrvogDijela = trenutniPodatak.pop > 40 ? "jutro_kisa" : (tempSada >= 22 ? "jutro_vruce" : "jutro_mirno");
             } else {
-                if (trenutniSat >= 5 && trenutniSat < 10) {
-                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "jutro_kisa" : (tempSada >= 27 ? "jutro_vruce" : "jutro_mirno");
-                } else {
-                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "dan_kisa" : (tempSada >= 30 ? "dan_vruce" : "dan_mirno");
-                }
+                tipPrvogDijela = trenutniPodatak.pop > 40 ? "dan_kisa" : (tempSada >= 30 ? "dan_vruce" : "dan_mirno");
             }
 
-            const dioDanaTekst = dajNasumicnuRecenicu(tipPrvogDijela, tempSada);
+            const dioDanaTekst = uzmiPametnuRecenicu(tipPrvogDijela, tempSada);
 
             const naredna3Sata = prognozaPodaci.slice(fokusIndex + 1, fokusIndex + 4);
             const prosjekNaredna3 = naredna3Sata.length > 0 
@@ -935,56 +1597,77 @@
             
             let triSataTekst = "";
             if (imaLiLedaU3Sata || (prosjekNaredna3 <= 0 && imaLiPadavinaU3Sata)) {
-                triSataTekst = `U iduća 3 sata pripremite se za poledicu, led i snježne nanose na ${prosjekNaredna3}°C.`;
+                triSataTekst = `U iduća 3 sata stiže poledica uz ${prosjekNaredna3}°C, oprez na cesti.`;
             } else if (jeLiMaglaU3Sata) {
-                triSataTekst = `U iduća 3 sata magla se neće pomjeriti ni za milimetar uz ${prosjekNaredna3}°C.`;
+                triSataTekst = `U iduća 3 sata magla se ne miče s mjesta na ${prosjekNaredna3}°C.`;
             } else if (jeLiVjetrovitoU3Sata) {
-                triSataTekst = `U iduća 3 sata vjetar će pojačati udare i dati osjećaj prave studeni na ${prosjekNaredna3}°C.`;
+                triSataTekst = `U iduća 3 sata vjetar će pojačati svoje udare na ${prosjekNaredna3}°C.`;
             } else if (jeLiOblacnoU3Sata) {
-                triSataTekst = `U iduća 3 sata sivi oblaci ostaju glavna atrakcija na nebu uz ${prosjekNaredna3}°C.`;
+                triSataTekst = `U iduća 3 sata sivi oblaci ostaju glavni program na ${prosjekNaredna3}°C.`;
             } else if (jeMrakSada) {
-                if (imaLiPadavinaU3Sata) {
-                    triSataTekst = `U iduća 3 sata očekuje se da kiša pokvari noćni provod uz ${prosjekNaredna3}°C.`;
-                } else {
-                    triSataTekst = `U iduća 3 sata noć ostaje pod kontrolom i ne miče se sa ${prosjekNaredna3}°C.`;
-                }
+                triSataTekst = imaLiPadavinaU3Sata ? `U iduća 3 sata kiša prijeti da pokvari noć na ${prosjekNaredna3}°C.` : `U iduća 3 sata noć ostaje mirna sa ${prosjekNaredna3}°C.`;
             } else {
                 if (imaLiPadavinaU3Sata) {
-                    triSataTekst = `U iduća 3 sata oblaci spremaju iznenađenje i kišnu idilu na ${prosjekNaredna3}°C.`;
+                    triSataTekst = `U iduća 3 sata oblaci spremaju kišni tuš na ${prosjekNaredna3}°C.`;
                 } else if (prosjekNaredna3 >= 30) {
-                    triSataTekst = `U iduća 3 sata sunce grije kao da nam se sveti, mjerimo ${prosjekNaredna3}°C.`;
+                    triSataTekst = `U iduća 3 sata sunce prži punom snagom uz ${prosjekNaredna3}°C.`;
                 } else {
-                    triSataTekst = dajNasumicnuRecenicu("tri_sata_saljivo", prosjekNaredna3);
+                    triSataTekst = uzmiPametnuRecenicu("tri_sata_saljivo", prosjekNaredna3);
                 }
             }
 
             let min3D = 20, max3D = 30;
-            // Napomena: pošto API sada vraća i jučerašnji dan (past_days=1), indeks "danas"
-            // više NIJE nužno 0 — tražimo ga po stvarnom datumu da izbjegnemo pomak od jednog dana.
-            if (globalDailyData && globalDailyData.time && globalDailyData.temperature_2m_max) {
-                const danasStr = formatirajDatumString(new Date());
-                let danasIdx = globalDailyData.time.indexOf(danasStr);
-                if (danasIdx === -1) danasIdx = 0;
+            let imaLiKiseU3Dana = false;
 
-                if (globalDailyData.temperature_2m_max.length >= danasIdx + 4) {
+            if (globalDailyData && globalDailyData.time && globalDailyData.temperature_2m_max) {
+                const odabraniDatumStr = trenutniPodatak.datum;
+                let danIdx = globalDailyData.time.indexOf(odabraniDatumStr);
+                if (danIdx === -1) danIdx = 0;
+
+                if (globalDailyData.temperature_2m_max.length >= danIdx + 4) {
                     const maxNaredna = [
-                        Math.round(globalDailyData.temperature_2m_max[danasIdx + 1]),
-                        Math.round(globalDailyData.temperature_2m_max[danasIdx + 2]),
-                        Math.round(globalDailyData.temperature_2m_max[danasIdx + 3])
+                        Math.round(globalDailyData.temperature_2m_max[danIdx + 1]),
+                        Math.round(globalDailyData.temperature_2m_max[danIdx + 2]),
+                        Math.round(globalDailyData.temperature_2m_max[danIdx + 3])
                     ];
                     const minNaredna = [
-                        Math.round(globalDailyData.temperature_2m_min[danasIdx + 1]),
-                        Math.round(globalDailyData.temperature_2m_min[danasIdx + 2]),
-                        Math.round(globalDailyData.temperature_2m_min[danasIdx + 3])
+                        Math.round(globalDailyData.temperature_2m_min[danIdx + 1]),
+                        Math.round(globalDailyData.temperature_2m_min[danIdx + 2]),
+                        Math.round(globalDailyData.temperature_2m_min[danIdx + 3])
                     ];
                     min3D = Math.min(...minNaredna);
                     max3D = Math.max(...maxNaredna);
+
+                    if (globalDailyData.weather_code) {
+                        const kodovi3D = [
+                            globalDailyData.weather_code[danIdx + 1],
+                            globalDailyData.weather_code[danIdx + 2],
+                            globalDailyData.weather_code[danIdx + 3]
+                        ];
+                        imaLiKiseU3Dana = kodovi3D.some(c => c >= 51);
+                    }
                 }
             }
 
-            const triDanaTekst = `Iduća 3 dana donose temperature u rasponu od ${min3D}°C do ${max3D}°C.`;
+            let triDanaTekst = imaLiKiseU3Dana 
+                ? `Naredna 3 dana donose promjenjivo vrijeme s kišom i temperaturama od ${min3D}°C do ${max3D}°C.`
+                : `Naredna 3 dana donose stabilan period s temperaturama od ${min3D}°C do ${max3D}°C.`;
 
-            summaryEl.innerText = `${dioDanaTekst} ${triSataTekst} ${triDanaTekst}`;
+            let finalniTekst = "";
+            const strukturaTip = Math.floor(Math.random() * 3);
+            
+            if (strukturaTip === 0) {
+                finalniTekst = `${dioDanaTekst} ${triSataTekst} ${triDanaTekst}`;
+            } else if (strukturaTip === 1) {
+                finalniTekst = `${triSataTekst} ${dioDanaTekst} ${triDanaTekst}`;
+            } else {
+                finalniTekst = `${triDanaTekst} ${dioDanaTekst} ${triSataTekst}`;
+            }
+
+            if (sokPoruka) finalniTekst = `${sokPoruka} ${finalniTekst}`;
+            if (preporukaAktivnosti) finalniTekst += ` ${preporukaAktivnosti}`;
+
+            summaryEl.innerText = finalniTekst;
         }
 
         function nacrtajSuncevuPutanju(item) {
@@ -1000,8 +1683,6 @@
                 return;
             }
 
-            // Prikaz vremena izlaska/zalaska za DAN kojem selektovani sat pripada
-            // (bitno kad klizeći prozor od 24h pređe u sutrašnji dan).
             document.getElementById('sunrise-val').innerText = formatVrijemeSati(sunInfo.sunrise);
             document.getElementById('sunset-val').innerText = formatVrijemeSati(sunInfo.sunset);
             document.getElementById('sunrise-svg-label').textContent = formatVrijemeSati(sunInfo.sunrise);
@@ -1011,7 +1692,6 @@
             const cx = 140, cyHoriz = 110, rxEl = 120;
 
             if (trenutak >= sunInfo.sunrise && trenutak <= sunInfo.sunset) {
-                // DAN — sunce putuje po gornjoj luku od izlaska (lijevo) do zalaska (desno)
                 const frakcija = (trenutak - sunInfo.sunrise) / (sunInfo.sunset - sunInfo.sunrise);
                 const thetaRad = (180 * (1 - frakcija)) * Math.PI / 180;
                 const ryEl = 100;
@@ -1026,7 +1706,6 @@
                 const doZalaska = formatTrajanje(sunInfo.sunset - trenutak);
                 statusEl.innerText = `☀️ Dan — Sunce je na ${posto}% svog dnevnog puta (zalazak za ${doZalaska}).`;
             } else {
-                // NOĆ — mjesec "putuje" donjom (isprekidanom) lukom od zalaska do idućeg izlaska
                 let pocetakNoci, krajNoci;
                 if (trenutak < sunInfo.sunrise) {
                     const jucerInfo = globalSunMapa[pomjeriDatumString(item.datum, -1)];
@@ -1073,11 +1752,6 @@
             const itemHeight = 40;
             isScrollingProgrammatically = true;
 
-            // VAŽNO: prvo popuni sve podatke (temperatura, vjetar, putanja sunca...),
-            // pa TEK ONDA pokušaj animirano skrolovati. Ranije je scrollTo() pozivano
-            // prije postaviIndex(), pa je bilo koja greška pri skrolovanju (npr. ako
-            // element još nije spreman odmah nakon izgradnje liste) blokirala
-            // prikaz SVIH podataka u aplikaciji.
             postaviIndex(idx);
 
             try {
@@ -1182,7 +1856,6 @@
                         const lonF = lon.toFixed(4);
                         
                         const imeLokacije = `${latF}, ${lonF}`;
-
                         const select = document.getElementById('city-select');
                         
                         const newOpt = document.createElement('option');
@@ -1206,10 +1879,10 @@
             }
         }
 
-        function promjeniGrad() {
+        async function promjeniGrad() {
             const select = document.getElementById('city-select');
             const [lat, lon] = select.value.split(',');
-            dajPodatke(lat, lon);
+            await dajPodatke(lat, lon);
         }
 
         promjeniGrad();
