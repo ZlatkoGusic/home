@@ -566,6 +566,7 @@
         let globalDailyData = null;
         let globalSunMapa = {};
         let posljednjiIzborMap = {}; 
+        let zadnjiZahtjevId = 0;
 
         function uzmiPametnuRecenicu(tip, tempVal) {
             const lista = bazeRecenica[tip] || bazeRecenica.dan_mirno;
@@ -600,7 +601,19 @@
         }
 
         function formatVrijemeSati(d) {
-            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            // FIX: koristimo getUTC* jer parsirajApiVrijeme() sve API stringove
+            // tumaci kao UTC (vidi napomenu u dajPodatke) - ovo osigurava tacan
+            // prikaz sata bez obzira na vremensku zonu uredjaja korisnika.
+            return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+        }
+
+        function parsirajApiVrijeme(apiString) {
+            // Open-Meteo (timezone=auto) vraca "YYYY-MM-DDTHH:MM" bez oznake zone,
+            // sto je zapravo lokalno vrijeme ODABRANE LOKACIJE, ne uredjaja korisnika.
+            // Dodavanjem 'Z' prisiljavamo JS da to tumaci kao fiksni, apsolutni
+            // trenutak (UTC), pa je svako dalje poredjenje (sunrise/sunset/sada)
+            // dosljedno i neovisno o vremenskoj zoni preglednika.
+            return new Date(apiString + 'Z');
         }
 
         function formatTrajanje(ms) {
@@ -632,6 +645,13 @@
                    code === 56 || code === 57 || code === 66 || code === 67;
         }
 
+        function jeSnijeg(code) {
+            // FIX: koristi se da tekst izvjestaja ne naziva snijeg "kisom".
+            // Prije je svaki weather_code >= 51 (sto ukljucuje i snijeg 71-77/85/86)
+            // bio opisivan iskljucivo kao "kisa" u kombinovanom izvjestaju.
+            return (code >= 71 && code <= 77) || code === 85 || code === 86;
+        }
+
         function stepeniUSmjer(deg) {
             const strane = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
             return strane[Math.round(deg / 45) % 8];
@@ -641,29 +661,50 @@
             const errorBox = document.getElementById('error-box');
             errorBox.style.display = 'none';
 
+            // FIX: cuvamo redni broj ovog zahtjeva. Ako korisnik brzo promijeni
+            // grad (ili klikne GPS pa odmah selektuje drugi grad), stariji fetch
+            // moze teoreticki stici KASNIJE od novijeg (mreza je nepredvidiva).
+            // Bez ove provjere, stariji ("zastarjeli") odgovor bi mogao prepisati
+            // podatke novijeg zahtjeva i prikazati pogresan grad/prognozu.
+            zadnjiZahtjevId++;
+            const ovajZahtjevId = zadnjiZahtjevId;
+
             try {
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7`;
                 const res = await fetch(url);
-                
+
+                if (ovajZahtjevId !== zadnjiZahtjevId) return; // stigao je noviji zahtjev u međuvremenu, ovaj ignorišemo
+
                 if (!res.ok) throw new Error("API odziv nije ispravan");
-                
+
                 const data = await res.json();
 
+                if (ovajZahtjevId !== zadnjiZahtjevId) return; // provjera i nakon drugog "await" (parsiranje JSON-a)
+
                 if (data && data.hourly && data.daily) {
-                    const sada = new Date();
+                    // NAPOMENA/FIX: Open-Meteo (timezone=auto) vraća vrijeme BEZ oznake zone,
+                    // vec u lokalnom vremenu odabrane lokacije. Ranije se "new Date(t)" i
+                    // "new Date()" (uredjaj korisnika) direktno poredilo, sto je tacno SAMO
+                    // ako je vremenska zona uredjaja ista kao zona odabrane lokacije (npr.
+                    // korisnik izvan BiH koristi dugme za GPS lokaciju - bio bi pogresan
+                    // "trenutni sat"). Zato sve API vremenske stringove parsiramo kao UTC
+                    // (dodavanjem 'Z'), a "sada" racunamo koristeci utc_offset_seconds koji
+                    // API vraca za odabranu lokaciju - tako je poredjenje uvijek dosljedno.
+                    const offsetSekunde = data.utc_offset_seconds || 0;
+                    const sada = new Date(Date.now() + offsetSekunde * 1000);
                     globalDailyData = data.daily;
 
                     globalSunMapa = {};
                     if (data.daily.time) {
                         data.daily.time.forEach((datStr, i) => {
                             globalSunMapa[datStr] = {
-                                sunrise: new Date(data.daily.sunrise[i]),
-                                sunset: new Date(data.daily.sunset[i])
+                                sunrise: parsirajApiVrijeme(data.daily.sunrise[i]),
+                                sunset: parsirajApiVrijeme(data.daily.sunset[i])
                             };
                         });
                     }
 
-                    let trenutniIndex = data.hourly.time.findIndex(t => new Date(t) > sada) - 1;
+                    let trenutniIndex = data.hourly.time.findIndex(t => parsirajApiVrijeme(t) > sada) - 1;
                     if (trenutniIndex < 0) trenutniIndex = 0;
 
                     prognozaPodaci = data.hourly.time.slice(trenutniIndex, trenutniIndex + 24).map((t, i) => {
@@ -672,7 +713,7 @@
                         const satNum = parseInt(satTekst.split(':')[0], 10);
                         const datumStr = t.split('T')[0];
                         const code = data.hourly.weather_code ? data.hourly.weather_code[gi] : 0;
-                        const itemDate = new Date(t);
+                        const itemDate = parsirajApiVrijeme(t);
 
                         const sunZaOvajDan = globalSunMapa[datumStr];
                         let jeMrak = false;
@@ -692,9 +733,9 @@
                             vlaznost: data.hourly.relative_humidity_2m ? Math.round(data.hourly.relative_humidity_2m[gi]) : 0,
                             pop: data.hourly.precipitation_probability ? data.hourly.precipitation_probability[gi] : 0,
                             uv: data.hourly.uv_index ? Math.round(data.hourly.uv_index[gi]) : 0,
-                            vjetar: Math.round(data.hourly.wind_speed_10m[gi]),
-                            smjerVjetra: data.hourly.wind_direction_10m[gi],
-                            pritisak: Math.round(data.hourly.pressure_msl[gi]),
+                            vjetar: data.hourly.wind_speed_10m ? Math.round(data.hourly.wind_speed_10m[gi]) : 0,
+                            smjerVjetra: data.hourly.wind_direction_10m ? data.hourly.wind_direction_10m[gi] : 0,
+                            pritisak: data.hourly.pressure_msl ? Math.round(data.hourly.pressure_msl[gi]) : 0,
                             picto: code,
                             jeMrak: jeMrak
                         };
@@ -704,6 +745,7 @@
                     setTimeout(() => skrolujNaIndex(0), 100);
                 }
             } catch (err) {
+                if (ovajZahtjevId !== zadnjiZahtjevId) return; // ne prikazuj gresku za zastarjeli zahtjev
                 console.error("Greška pri učitavanju:", err);
                 errorBox.style.display = 'block';
             }
@@ -1519,7 +1561,7 @@
             let preporukaAktivnosti = "";
 
             const sunInfoOvajDan = globalSunMapa[trenutniPodatak.datum];
-            const jeRanoJutro = sunInfoOvajDan && new Date(trenutniPodatak.fullIso) >= sunInfoOvajDan.sunrise && trenutniSat <= 10;
+            const jeRanoJutro = sunInfoOvajDan && parsirajApiVrijeme(trenutniPodatak.fullIso) >= sunInfoOvajDan.sunrise && trenutniSat <= 10;
 
             if (Math.abs(tempRazlika) >= 5) {
                 if (tempRazlika > 0) {
@@ -1541,9 +1583,9 @@
                 preporukaAktivnosti = "Topli čaj, kauč i dobar film – najbolje što možete uraditi dok kiša bubnja.";
             }
 
-            if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
+            if (tempSada <= 2 && jeLedenaPadavina(weatherCode)) {
                 ozbiljnoUpozorenje = `CRVENI ALARM: Ledena kiša i snijeg na ${tempSada}°C! Ceste su klizališta, oprez u vožnji.`;
-            } else if (tempSada <= 2 && (weatherCode === 0 || weatherCode === 1) && (jeMrakSada || jeRanoJutro)) {
+            } else if (tempSada <= 2 && weatherCode <= 2 && (jeMrakSada || jeRanoJutro)) {
                 ozbiljnoUpozorenje = `UPOZORENJE NA MRAZ: Temperatura pala na ${tempSada}°C uz opasnost od poledice i slane.`;
             } else if (tempSada >= 35) {
                 ozbiljnoUpozorenje = `TOPLOTNI UDAR: Prži na ${tempSada}°C! Sklonite se sa sunca i pijte dovoljno vode.`;
@@ -1560,24 +1602,26 @@
                 alertBoxEl.style.display = 'none';
             }
 
-            if (tempSada <= 0 && jeLedenaPadavina(weatherCode)) {
+            if (jeLedenaPadavina(weatherCode) && tempSada <= 0) {
                 tipPrvogDijela = "led_i_snijeg";
-            } else if (tempSada <= 2 && (jeMrakSada || jeRanoJutro)) {
-                tipPrvogDijela = "mraz";
             } else if (weatherCode === 45 || weatherCode === 48) {
                 tipPrvogDijela = "magla";
             } else if (vjetarSada > 35) {
                 tipPrvogDijela = "vjetrovito";
-            } else if (weatherCode === 3) {
-                tipPrvogDijela = "oblacno";
+            } else if (tempSada <= 2 && weatherCode <= 2 && (jeMrakSada || jeRanoJutro)) {
+                tipPrvogDijela = "mraz";
             } else if (jeMrakSada) {
-                if (tempSada <= 0) {
-                    tipPrvogDijela = "led_i_snijeg";
-                } else {
-                    tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : (tempSada >= 25 ? "noc_vruce" : "noc_mirno");
-                }
+                // FIX: provjera "je li mrak" je i dalje ispred generičkog "oblačno" (dolje),
+                // jer su "oblačno" rečenice pisane iz dnevne perspektive (spominju sunce koje
+                // se "krije"), što nema smisla noću. Led/magla/vjetar imaju prioritet nad
+                // mrazom i nad noć/jutro granama jer ta stanja fizički isključuju "miran,
+                // vedar mraz" opis (magla i vjetar sprječavaju radijativno hlađenje/mraz,
+                // a aktivan snijeg/poledica je ozbiljnije stanje od pukog mraza).
+                tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : (tempSada >= 25 ? "noc_vruce" : "noc_mirno");
             } else if (jeRanoJutro) {
                 tipPrvogDijela = trenutniPodatak.pop > 40 ? "jutro_kisa" : (tempSada >= 22 ? "jutro_vruce" : "jutro_mirno");
+            } else if (weatherCode === 3) {
+                tipPrvogDijela = "oblacno";
             } else {
                 tipPrvogDijela = trenutniPodatak.pop > 40 ? "dan_kisa" : (tempSada >= 30 ? "dan_vruce" : "dan_mirno");
             }
@@ -1590,7 +1634,8 @@
                 : tempSada;
 
             const imaLiPadavinaU3Sata = naredna3Sata.some(p => p.pop > 40 || p.picto >= 51);
-            const imaLiLedaU3Sata = naredna3Sata.some(p => p.temp <= 0 && jeLedenaPadavina(p.picto));
+            const imaLiSnijegaU3Sata = naredna3Sata.some(p => jeSnijeg(p.picto));
+            const imaLiLedaU3Sata = naredna3Sata.some(p => p.temp <= 2 && jeLedenaPadavina(p.picto));
             const jeLiOblacnoU3Sata = naredna3Sata.some(p => p.picto === 3);
             const jeLiMaglaU3Sata = naredna3Sata.some(p => p.picto === 45 || p.picto === 48);
             const jeLiVjetrovitoU3Sata = naredna3Sata.some(p => p.vjetar > 35);
@@ -1605,10 +1650,10 @@
             } else if (jeLiOblacnoU3Sata) {
                 triSataTekst = `U iduća 3 sata sivi oblaci ostaju glavni program na ${prosjekNaredna3}°C.`;
             } else if (jeMrakSada) {
-                triSataTekst = imaLiPadavinaU3Sata ? `U iduća 3 sata kiša prijeti da pokvari noć na ${prosjekNaredna3}°C.` : `U iduća 3 sata noć ostaje mirna sa ${prosjekNaredna3}°C.`;
+                triSataTekst = imaLiPadavinaU3Sata ? `U iduća 3 sata ${imaLiSnijegaU3Sata ? 'snijeg prijeti da pokvari noć' : 'kiša prijeti da pokvari noć'} na ${prosjekNaredna3}°C.` : `U iduća 3 sata noć ostaje mirna sa ${prosjekNaredna3}°C.`;
             } else {
                 if (imaLiPadavinaU3Sata) {
-                    triSataTekst = `U iduća 3 sata oblaci spremaju kišni tuš na ${prosjekNaredna3}°C.`;
+                    triSataTekst = `U iduća 3 sata oblaci spremaju ${imaLiSnijegaU3Sata ? 'snježni tuš' : 'kišni tuš'} na ${prosjekNaredna3}°C.`;
                 } else if (prosjekNaredna3 >= 30) {
                     triSataTekst = `U iduća 3 sata sunce prži punom snagom uz ${prosjekNaredna3}°C.`;
                 } else {
@@ -1616,8 +1661,13 @@
                 }
             }
 
-            let min3D = 20, max3D = 30;
+            // FIX: prije su min3D/max3D imali fiksni fallback 20°C/30°C - ako iz bilo
+            // kojeg razloga (npr. na samom rubu 7-dnevnog prozora) nema dovoljno
+            // dnevnih podataka, aplikacija bi mogla tvrditi "20°C do 30°C" usred zime.
+            // Sada je fallback usidren na trenutnu poznatu temperaturu.
+            let min3D = tempSada - 5, max3D = tempSada + 5;
             let imaLiKiseU3Dana = false;
+            let imaLiSnijegaU3Dana = false;
 
             if (globalDailyData && globalDailyData.time && globalDailyData.temperature_2m_max) {
                 const odabraniDatumStr = trenutniPodatak.datum;
@@ -1645,12 +1695,13 @@
                             globalDailyData.weather_code[danIdx + 3]
                         ];
                         imaLiKiseU3Dana = kodovi3D.some(c => c >= 51);
+                        imaLiSnijegaU3Dana = kodovi3D.some(c => jeSnijeg(c));
                     }
                 }
             }
 
-            let triDanaTekst = imaLiKiseU3Dana 
-                ? `Naredna 3 dana donose promjenjivo vrijeme s kišom i temperaturama od ${min3D}°C do ${max3D}°C.`
+            let triDanaTekst = imaLiKiseU3Dana
+                ? `Naredna 3 dana donose promjenjivo vrijeme s ${imaLiSnijegaU3Dana ? 'snijegom' : 'kišom'} i temperaturama od ${min3D}°C do ${max3D}°C.`
                 : `Naredna 3 dana donose stabilan period s temperaturama od ${min3D}°C do ${max3D}°C.`;
 
             let finalniTekst = "";
@@ -1688,7 +1739,7 @@
             document.getElementById('sunrise-svg-label').textContent = formatVrijemeSati(sunInfo.sunrise);
             document.getElementById('sunset-svg-label').textContent = formatVrijemeSati(sunInfo.sunset);
 
-            const trenutak = new Date(item.fullIso);
+            const trenutak = parsirajApiVrijeme(item.fullIso);
             const cx = 140, cyHoriz = 110, rxEl = 120;
 
             if (trenutak >= sunInfo.sunrise && trenutak <= sunInfo.sunset) {
@@ -1824,7 +1875,11 @@
                 document.getElementById('wind-val').innerText = `${podatak.vjetar} km/h`;
                 const windArrow = document.getElementById('wind-arrow');
                 const smjerDeg = podatak.smjerVjetra || 0;
-                windArrow.style.transform = `rotate(${smjerDeg}deg)`;
+                // FIX: wind_direction_10m je smjer ODAKLE vjetar duva (meteorološka konvencija).
+                // Strelica sada pokazuje KUDA vjetar duva (smjer + 180°), dok tekst pored nje
+                // (npr. "(N)") i dalje govori odakle dolazi - tako se strelica čita kao strelica
+                // strujanja vazduha, a ne kao kazaljka ka izvoru (isti pristup kao na Windy/Yr.no).
+                windArrow.style.transform = `rotate(${(smjerDeg + 180) % 360}deg)`;
                 document.getElementById('wind-dir').innerText = `(${stepeniUSmjer(smjerDeg)})`;
 
                 document.getElementById('pressure-val').innerText = `${podatak.pritisak} hPa`;
@@ -1857,10 +1912,16 @@
                         
                         const imeLokacije = `${latF}, ${lonF}`;
                         const select = document.getElementById('city-select');
-                        
+
+                        // FIX: ukloni prethodno dodane GPS unose (📍) prije dodavanja
+                        // novog, da se dropdown ne puni duplikatima pri ponovljenim
+                        // klikovima na dugme za lokaciju.
+                        Array.from(select.querySelectorAll('option[data-gps="1"]')).forEach(opt => opt.remove());
+
                         const newOpt = document.createElement('option');
                         newOpt.value = `${latF},${lonF}`;
                         newOpt.innerText = `📍 ${imeLokacije}`;
+                        newOpt.dataset.gps = "1";
                         newOpt.selected = true;
                         select.insertBefore(newOpt, select.firstChild);
 
