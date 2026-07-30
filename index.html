@@ -443,7 +443,7 @@
                     <option value="44.7322,18.0864">Doboj</option>
                     <option value="43.6552,17.9576">Konjic</option>
                     <option value="42.7103,18.3436">Trebinje</option>
-                    <option value="43.8333,17.3000">Livno</option>
+                    <option value="43.8286,17.0083">Livno</option>
                     <option value="43.9389,17.6658">Travnik</option>
                 </select>
                 <button class="btn-location" onclick="dajMojaLokacija()" title="Učitaj moju trenutnu lokaciju">📍</button>
@@ -1704,16 +1704,11 @@
                 ? `Naredna 3 dana donose promjenjivo vrijeme s ${imaLiSnijegaU3Dana ? 'snijegom' : 'kišom'} i temperaturama od ${min3D}°C do ${max3D}°C.`
                 : `Naredna 3 dana donose stabilan period s temperaturama od ${min3D}°C do ${max3D}°C.`;
 
-            let finalniTekst = "";
-            const strukturaTip = Math.floor(Math.random() * 3);
-            
-            if (strukturaTip === 0) {
-                finalniTekst = `${dioDanaTekst} ${triSataTekst} ${triDanaTekst}`;
-            } else if (strukturaTip === 1) {
-                finalniTekst = `${triSataTekst} ${dioDanaTekst} ${triDanaTekst}`;
-            } else {
-                finalniTekst = `${triDanaTekst} ${dioDanaTekst} ${triSataTekst}`;
-            }
+            // FIX: prije je redoslijed (sada / naredna 3 sata / naredna 3 dana) bio
+            // NASUMIČAN (Math.random), pa je izvještaj ponekad počinjao sa "naredna 3
+            // dana", prije nego što bi uopšte rekao kakvo je vrijeme trenutno - zbunjujuće
+            // pri brzom čitanju. Sada je uvijek fiksni, hronološki redoslijed: sada -> 3h -> 3 dana.
+            let finalniTekst = `${dioDanaTekst} ${triSataTekst} ${triDanaTekst}`;
 
             if (sokPoruka) finalniTekst = `${sokPoruka} ${finalniTekst}`;
             if (preporukaAktivnosti) finalniTekst += ` ${preporukaAktivnosti}`;
