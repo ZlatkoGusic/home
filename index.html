@@ -664,6 +664,82 @@
             return strane[Math.round(deg / 45) % 8];
         }
 
+        // FIX: "najtacnije vrijeme" - umjesto oslanjanja na jedan model (ranije: bez
+        // &models= parametra, sto je Open-Meteo automatski rjesavao u ICON za BiH),
+        // sada tražimo DVA nezavisna modela (ICON i ECMWF) i računamo prosjek. Ovo je
+        // standardna meteoroloska tehnika ("poor man's ensemble") - usrednjavanje dva
+        // nezavisna modela obično smanjuje slučajnu grešku svakog pojedinačnog modela.
+        const MODELI_ZA_PROSJEK = ["icon_seamless", "ecmwf_ifs025"];
+
+        function nadjiDnevnoPolje(objekat, baseIme, idx) {
+            for (const m of MODELI_ZA_PROSJEK) {
+                const kljuc = `${baseIme}_${m}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    return objekat[kljuc][idx];
+                }
+            }
+            return objekat[baseIme] ? objekat[baseIme][idx] : undefined;
+        }
+
+        function prosjekSmjeraVjetra(objekat, idx) {
+            // FIX: smjer vjetra je KRUŽNA veličina (0° = 360°). Običan aritmetički
+            // prosjek loše radi blizu sjevera - prosjek 350° i 10° treba biti 0°
+            // (sjever), a naivan prosjek bi dao 180° (jug), potpuno pogrešno.
+            // Zato se prosjek računa preko jediničnih vektora (sin/cos), ne preko brojeva.
+            let sumX = 0, sumY = 0, brojac = 0;
+            for (const m of MODELI_ZA_PROSJEK) {
+                const kljuc = `wind_direction_10m_${m}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    const rad = objekat[kljuc][idx] * Math.PI / 180;
+                    sumX += Math.cos(rad);
+                    sumY += Math.sin(rad);
+                    brojac++;
+                }
+            }
+            if (brojac === 0) {
+                return objekat.wind_direction_10m ? objekat.wind_direction_10m[idx] : 0;
+            }
+            let deg = Math.atan2(sumY / brojac, sumX / brojac) * 180 / Math.PI;
+            if (deg < 0) deg += 360;
+            return deg;
+        }
+
+        function prosjekVrijednosti(objekat, baseIme, idx) {
+            let zbir = 0, brojac = 0;
+            for (const m of MODELI_ZA_PROSJEK) {
+                const kljuc = `${baseIme}_${m}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    zbir += objekat[kljuc][idx];
+                    brojac++;
+                }
+            }
+            if (brojac > 0) return zbir / brojac;
+            // Fallback: polje nije sufiksirano imenom modela (npr. ako API iz nekog
+            // razloga vrati samo jedan model, ili je polje astronomsko poput izlaska sunca).
+            if (objekat[baseIme] && objekat[baseIme][idx] !== null && objekat[baseIme][idx] !== undefined) {
+                return objekat[baseIme][idx];
+            }
+            return null;
+        }
+
+        function konsenzusKodVremena(objekat, idx) {
+            const kodovi = [];
+            for (const m of MODELI_ZA_PROSJEK) {
+                const kljuc = `weather_code_${m}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    kodovi.push(objekat[kljuc][idx]);
+                }
+            }
+            if (kodovi.length === 0) {
+                return objekat.weather_code ? objekat.weather_code[idx] : 0;
+            }
+            // weather_code je kategorija, ne broj koji ima smisla prosjeciti (prosjek
+            // koda 3 i koda 61 ne znaci nista). Umjesto toga biramo OZBILJNIJI od dva -
+            // sigurnosno opreznije: ako makar jedan model najavljuje kišu/snijeg, tretiramo
+            // to ozbiljno, umjesto da ga "razrijedimo" prosjekom sa vedrim modelom.
+            return Math.max(...kodovi);
+        }
+
         async function dajPodatke(lat, lon) {
             const errorBox = document.getElementById('error-box');
             errorBox.style.display = 'none';
@@ -677,7 +753,7 @@
             const ovajZahtjevId = zadnjiZahtjevId;
 
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
                 const res = await fetch(url);
 
                 if (ovajZahtjevId !== zadnjiZahtjevId) return; // stigao je noviji zahtjev u međuvremenu, ovaj ignorišemo
@@ -705,8 +781,8 @@
                     if (data.daily.time) {
                         data.daily.time.forEach((datStr, i) => {
                             globalSunMapa[datStr] = {
-                                sunrise: parsirajApiVrijeme(data.daily.sunrise[i]),
-                                sunset: parsirajApiVrijeme(data.daily.sunset[i])
+                                sunrise: parsirajApiVrijeme(nadjiDnevnoPolje(data.daily, "sunrise", i)),
+                                sunset: parsirajApiVrijeme(nadjiDnevnoPolje(data.daily, "sunset", i))
                             };
                         });
                     }
@@ -719,7 +795,7 @@
                         const satTekst = t.split('T')[1];
                         const satNum = parseInt(satTekst.split(':')[0], 10);
                         const datumStr = t.split('T')[0];
-                        const code = data.hourly.weather_code ? data.hourly.weather_code[gi] : 0;
+                        const code = konsenzusKodVremena(data.hourly, gi);
                         const itemDate = parsirajApiVrijeme(t);
 
                         const sunZaOvajDan = globalSunMapa[datumStr];
@@ -730,19 +806,22 @@
                             jeMrak = satNum < 5 || satNum > 20;
                         }
 
+                        const temp = prosjekVrijednosti(data.hourly, "temperature_2m", gi);
+                        const feels = prosjekVrijednosti(data.hourly, "apparent_temperature", gi);
+
                         return {
                             fullIso: t,
                             datum: datumStr,
                             vreme: satTekst,
                             satNum: satNum,
-                            temp: Math.round(data.hourly.temperature_2m[gi]),
-                            feelsLike: data.hourly.apparent_temperature ? Math.round(data.hourly.apparent_temperature[gi]) : Math.round(data.hourly.temperature_2m[gi]),
-                            vlaznost: data.hourly.relative_humidity_2m ? Math.round(data.hourly.relative_humidity_2m[gi]) : 0,
-                            pop: data.hourly.precipitation_probability ? data.hourly.precipitation_probability[gi] : 0,
-                            uv: data.hourly.uv_index ? Math.round(data.hourly.uv_index[gi]) : 0,
-                            vjetar: data.hourly.wind_speed_10m ? Math.round(data.hourly.wind_speed_10m[gi]) : 0,
-                            smjerVjetra: data.hourly.wind_direction_10m ? data.hourly.wind_direction_10m[gi] : 0,
-                            pritisak: data.hourly.pressure_msl ? Math.round(data.hourly.pressure_msl[gi]) : 0,
+                            temp: temp !== null ? Math.round(temp) : 0,
+                            feelsLike: feels !== null ? Math.round(feels) : (temp !== null ? Math.round(temp) : 0),
+                            vlaznost: (() => { const v = prosjekVrijednosti(data.hourly, "relative_humidity_2m", gi); return v !== null ? Math.round(v) : 0; })(),
+                            pop: (() => { const v = prosjekVrijednosti(data.hourly, "precipitation_probability", gi); return v !== null ? Math.round(v) : 0; })(),
+                            uv: (() => { const v = prosjekVrijednosti(data.hourly, "uv_index", gi); return v !== null ? Math.round(v) : 0; })(),
+                            vjetar: (() => { const v = prosjekVrijednosti(data.hourly, "wind_speed_10m", gi); return v !== null ? Math.round(v) : 0; })(),
+                            smjerVjetra: (() => { const v = prosjekSmjeraVjetra(data.hourly, gi); return v !== null ? v : 0; })(),
+                            pritisak: (() => { const v = prosjekVrijednosti(data.hourly, "pressure_msl", gi); return v !== null ? Math.round(v) : 0; })(),
                             picto: code,
                             jeMrak: jeMrak
                         };
@@ -1373,31 +1452,20 @@
             let imaLiSnijegaU3Dana = false;
             let svaTriDanaOblacna = false;
 
-            if (globalDailyData && globalDailyData.time && globalDailyData.temperature_2m_max) {
+            if (globalDailyData && globalDailyData.time && globalDailyData.time.length) {
                 const odabraniDatumStr = trenutniPodatak.datum;
                 let danIdx = globalDailyData.time.indexOf(odabraniDatumStr);
                 if (danIdx === -1) danIdx = 0;
 
-                if (globalDailyData.temperature_2m_max.length >= danIdx + 4) {
-                    const maxNaredna = [
-                        Math.round(globalDailyData.temperature_2m_max[danIdx + 1]),
-                        Math.round(globalDailyData.temperature_2m_max[danIdx + 2]),
-                        Math.round(globalDailyData.temperature_2m_max[danIdx + 3])
-                    ];
-                    const minNaredna = [
-                        Math.round(globalDailyData.temperature_2m_min[danIdx + 1]),
-                        Math.round(globalDailyData.temperature_2m_min[danIdx + 2]),
-                        Math.round(globalDailyData.temperature_2m_min[danIdx + 3])
-                    ];
-                    min3D = Math.min(...minNaredna);
-                    max3D = Math.max(...maxNaredna);
+                if (globalDailyData.time.length >= danIdx + 4) {
+                    const maxVrij = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => prosjekVrijednosti(globalDailyData, "temperature_2m_max", i));
+                    const minVrij = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => prosjekVrijednosti(globalDailyData, "temperature_2m_min", i));
 
-                    if (globalDailyData.weather_code) {
-                        const kodovi3D = [
-                            globalDailyData.weather_code[danIdx + 1],
-                            globalDailyData.weather_code[danIdx + 2],
-                            globalDailyData.weather_code[danIdx + 3]
-                        ];
+                    if (maxVrij.every(v => v !== null) && minVrij.every(v => v !== null)) {
+                        min3D = Math.round(Math.min(...minVrij));
+                        max3D = Math.round(Math.max(...maxVrij));
+
+                        const kodovi3D = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => konsenzusKodVremena(globalDailyData, i));
                         imaLiKiseU3Dana = kodovi3D.some(c => c >= 51);
                         imaLiSnijegaU3Dana = kodovi3D.some(c => jeSnijeg(c));
                         svaTriDanaOblacna = kodovi3D.every(c => c === 3);
