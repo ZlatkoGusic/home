@@ -666,10 +666,12 @@
 
         // FIX: "najtacnije vrijeme" - umjesto oslanjanja na jedan model (ranije: bez
         // &models= parametra, sto je Open-Meteo automatski rjesavao u ICON za BiH),
-        // sada tražimo DVA nezavisna modela (ICON i ECMWF) i računamo prosjek. Ovo je
-        // standardna meteoroloska tehnika ("poor man's ensemble") - usrednjavanje dva
-        // nezavisna modela obično smanjuje slučajnu grešku svakog pojedinačnog modela.
-        const MODELI_ZA_PROSJEK = ["icon_seamless", "ecmwf_ifs025"];
+        // sada tražimo TRI nezavisna modela (ICON, ECMWF, ALADIN) i računamo prosjek. Ovo je
+        // standardna meteoroloska tehnika ("poor man's ensemble") - usrednjavanje nezavisnih
+        // modela obično smanjuje slučajnu grešku svakog pojedinačnog modela.
+        // Napomena: ALADIN (CHMI) pokriva prvenstveno Centralnu Evropu; ako za neku lokaciju
+        // nema podataka, prosjekVrijednosti() ga automatski preskace i koristi preostala 2 modela.
+        const MODELI_ZA_PROSJEK = ["icon_seamless", "ecmwf_ifs025", "chmi_aladin_seamless"];
 
         function nadjiDnevnoPolje(objekat, baseIme, idx) {
             for (const m of MODELI_ZA_PROSJEK) {
