@@ -11,8 +11,10 @@
             background-color: #f1f5f9;
             color: #0f172a;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
+            gap: 4px;
             min-height: 100vh;
             padding: 12px;
         }
@@ -34,8 +36,17 @@
         }
         .header-top {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
+        }
+        .model-footer {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #f1f5f9;
+            line-height: 1.4;
         }
         h2 { color: #0f172a; font-size: 1.35rem; font-weight: 800; }
         
@@ -86,15 +97,6 @@
             background-color: #eff6ff; 
             border-color: #bfdbfe;
             color: #1d4ed8;
-        }
-
-        .source-tag {
-            font-size: 0.75rem;
-            background-color: #10b981;
-            color: #ffffff;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-weight: 700;
         }
 
         .weather-display {
@@ -425,8 +427,7 @@
     <div class="container">
         <div class="header">
             <div class="header-top">
-                <h2>Vremenska Prognoza</h2>
-                <span class="source-tag">ECMWF / ICON</span>
+                <h2>Vrijeme BiH</h2>
             </div>
             <div class="controls">
                 <select id="city-select" onchange="promjeniGrad()">
@@ -555,6 +556,8 @@
                 </div>
             </div>
         </div>
+
+        <div class="model-footer">Podaci: prosjek ICON, ECMWF i ALADIN modela (Open-Meteo)</div>
 
     </div>
 
