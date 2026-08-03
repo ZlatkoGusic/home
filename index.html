@@ -48,6 +48,36 @@
             border-top: 1px solid #f1f5f9;
             line-height: 1.4;
         }
+        .model-footer-label {
+            margin-bottom: 8px;
+        }
+        .model-selector {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .model-btn {
+            font-family: inherit;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .model-btn:hover {
+            background-color: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        .model-btn.active {
+            background-color: #2563eb;
+            border-color: #2563eb;
+            color: #ffffff;
+        }
         h2 { color: #0f172a; font-size: 1.35rem; font-weight: 800; }
         
         .controls {
@@ -557,7 +587,15 @@
             </div>
         </div>
 
-        <div class="model-footer">Podaci: prosjek ICON, ECMWF i ALADIN modela (Open-Meteo)</div>
+        <div class="model-footer">
+            <div class="model-footer-label">Izvor podataka</div>
+            <div class="model-selector">
+                <button class="model-btn active" data-model="prosjek" onclick="promijeniModel('prosjek')">Prosjek</button>
+                <button class="model-btn" data-model="icon_seamless" onclick="promijeniModel('icon_seamless')">ICON</button>
+                <button class="model-btn" data-model="ecmwf_ifs025" onclick="promijeniModel('ecmwf_ifs025')">ECMWF</button>
+                <button class="model-btn" data-model="chmi_aladin_seamless" onclick="promijeniModel('chmi_aladin_seamless')">ALADIN</button>
+            </div>
+        </div>
 
     </div>
 
@@ -570,6 +608,8 @@
         let globalSunMapa = {};
         let posljednjiIzborMap = {}; 
         let zadnjiZahtjevId = 0;
+        let odabraniModel = "prosjek"; // "prosjek" | "icon_seamless" | "ecmwf_ifs025" | "chmi_aladin_seamless"
+        let zadnjaSirovaData = null; // { hourly, daily, offsetSekunde } - cuvamo da klik na model ne trazi ponovo API
 
         function izaberiSablon(tip) {
             const lista = bazeRecenica[tip] || bazeRecenica.dan_mirno;
@@ -691,6 +731,12 @@
             // prosjek loše radi blizu sjevera - prosjek 350° i 10° treba biti 0°
             // (sjever), a naivan prosjek bi dao 180° (jug), potpuno pogrešno.
             // Zato se prosjek računa preko jediničnih vektora (sin/cos), ne preko brojeva.
+            if (odabraniModel !== "prosjek") {
+                const kljuc = `wind_direction_10m_${odabraniModel}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    return objekat[kljuc][idx];
+                }
+            }
             let sumX = 0, sumY = 0, brojac = 0;
             for (const m of MODELI_ZA_PROSJEK) {
                 const kljuc = `wind_direction_10m_${m}`;
@@ -710,6 +756,15 @@
         }
 
         function prosjekVrijednosti(objekat, baseIme, idx) {
+            if (odabraniModel !== "prosjek") {
+                const kljuc = `${baseIme}_${odabraniModel}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    return objekat[kljuc][idx];
+                }
+                // Odabrani model nema podatak za ovaj sat (npr. ALADIN nema domen za
+                // ovu lokaciju, ili je izvan svog 3-dnevnog horizonta) - umjesto praznine,
+                // tiho padamo na prosjek preostalih dostupnih modela.
+            }
             let zbir = 0, brojac = 0;
             for (const m of MODELI_ZA_PROSJEK) {
                 const kljuc = `${baseIme}_${m}`;
@@ -728,6 +783,12 @@
         }
 
         function konsenzusKodVremena(objekat, idx) {
+            if (odabraniModel !== "prosjek") {
+                const kljuc = `weather_code_${odabraniModel}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    return objekat[kljuc][idx];
+                }
+            }
             const kodovi = [];
             for (const m of MODELI_ZA_PROSJEK) {
                 const kljuc = `weather_code_${m}`;
@@ -743,6 +804,77 @@
             // sigurnosno opreznije: ako makar jedan model najavljuje kišu/snijeg, tretiramo
             // to ozbiljno, umjesto da ga "razrijedimo" prosjekom sa vedrim modelom.
             return Math.max(...kodovi);
+        }
+
+        function izgradiProgozaPodaci(hourlyData, dailyData, offsetSekunde) {
+            const sada = new Date(Date.now() + offsetSekunde * 1000);
+
+            globalDailyData = dailyData;
+            globalSunMapa = {};
+            if (dailyData.time) {
+                dailyData.time.forEach((datStr, i) => {
+                    globalSunMapa[datStr] = {
+                        sunrise: parsirajApiVrijeme(nadjiDnevnoPolje(dailyData, "sunrise", i)),
+                        sunset: parsirajApiVrijeme(nadjiDnevnoPolje(dailyData, "sunset", i))
+                    };
+                });
+            }
+
+            let trenutniIndex = hourlyData.time.findIndex(t => parsirajApiVrijeme(t) > sada) - 1;
+            if (trenutniIndex < 0) trenutniIndex = 0;
+
+            return hourlyData.time.slice(trenutniIndex, trenutniIndex + 24).map((t, i) => {
+                const gi = trenutniIndex + i;
+                const satTekst = t.split('T')[1];
+                const satNum = parseInt(satTekst.split(':')[0], 10);
+                const datumStr = t.split('T')[0];
+                const code = konsenzusKodVremena(hourlyData, gi);
+                const itemDate = parsirajApiVrijeme(t);
+
+                const sunZaOvajDan = globalSunMapa[datumStr];
+                let jeMrak = false;
+                if (sunZaOvajDan) {
+                    jeMrak = itemDate < sunZaOvajDan.sunrise || itemDate > sunZaOvajDan.sunset;
+                } else {
+                    jeMrak = satNum < 5 || satNum > 20;
+                }
+
+                const temp = prosjekVrijednosti(hourlyData, "temperature_2m", gi);
+                const feels = prosjekVrijednosti(hourlyData, "apparent_temperature", gi);
+
+                return {
+                    fullIso: t,
+                    datum: datumStr,
+                    vreme: satTekst,
+                    satNum: satNum,
+                    temp: temp !== null ? Math.round(temp) : 0,
+                    feelsLike: feels !== null ? Math.round(feels) : (temp !== null ? Math.round(temp) : 0),
+                    vlaznost: (() => { const v = prosjekVrijednosti(hourlyData, "relative_humidity_2m", gi); return v !== null ? Math.round(v) : 0; })(),
+                    pop: (() => { const v = prosjekVrijednosti(hourlyData, "precipitation_probability", gi); return v !== null ? Math.round(v) : 0; })(),
+                    uv: (() => { const v = prosjekVrijednosti(hourlyData, "uv_index", gi); return v !== null ? Math.round(v) : 0; })(),
+                    vjetar: (() => { const v = prosjekVrijednosti(hourlyData, "wind_speed_10m", gi); return v !== null ? Math.round(v) : 0; })(),
+                    smjerVjetra: (() => { const v = prosjekSmjeraVjetra(hourlyData, gi); return v !== null ? v : 0; })(),
+                    pritisak: (() => { const v = prosjekVrijednosti(hourlyData, "pressure_msl", gi); return v !== null ? Math.round(v) : 0; })(),
+                    picto: code,
+                    jeMrak: jeMrak
+                };
+            });
+        }
+
+        function promijeniModel(noviModel) {
+            if (noviModel === odabraniModel || !zadnjaSirovaData) return;
+            odabraniModel = noviModel;
+
+            document.querySelectorAll('.model-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.model === noviModel);
+            });
+
+            // Zadrzavamo trenutno odabran sat (ne vracamo se na "sada") - korisnik
+            // samo zeli vidjeti ISTI sat iz ugla drugog modela.
+            const zadrzaniIndex = Math.min(izabraniIndex, 23);
+            prognozaPodaci = izgradiProgozaPodaci(zadnjaSirovaData.hourly, zadnjaSirovaData.daily, zadnjaSirovaData.offsetSekunde);
+            izgradiRollerSati();
+            skrolujNaIndex(zadrzaniIndex);
         }
 
         async function dajPodatke(lat, lon) {
@@ -779,58 +911,10 @@
                     // (dodavanjem 'Z'), a "sada" racunamo koristeci utc_offset_seconds koji
                     // API vraca za odabranu lokaciju - tako je poredjenje uvijek dosljedno.
                     const offsetSekunde = data.utc_offset_seconds || 0;
-                    const sada = new Date(Date.now() + offsetSekunde * 1000);
-                    globalDailyData = data.daily;
 
-                    globalSunMapa = {};
-                    if (data.daily.time) {
-                        data.daily.time.forEach((datStr, i) => {
-                            globalSunMapa[datStr] = {
-                                sunrise: parsirajApiVrijeme(nadjiDnevnoPolje(data.daily, "sunrise", i)),
-                                sunset: parsirajApiVrijeme(nadjiDnevnoPolje(data.daily, "sunset", i))
-                            };
-                        });
-                    }
+                    zadnjaSirovaData = { hourly: data.hourly, daily: data.daily, offsetSekunde: offsetSekunde };
 
-                    let trenutniIndex = data.hourly.time.findIndex(t => parsirajApiVrijeme(t) > sada) - 1;
-                    if (trenutniIndex < 0) trenutniIndex = 0;
-
-                    prognozaPodaci = data.hourly.time.slice(trenutniIndex, trenutniIndex + 24).map((t, i) => {
-                        const gi = trenutniIndex + i;
-                        const satTekst = t.split('T')[1];
-                        const satNum = parseInt(satTekst.split(':')[0], 10);
-                        const datumStr = t.split('T')[0];
-                        const code = konsenzusKodVremena(data.hourly, gi);
-                        const itemDate = parsirajApiVrijeme(t);
-
-                        const sunZaOvajDan = globalSunMapa[datumStr];
-                        let jeMrak = false;
-                        if (sunZaOvajDan) {
-                            jeMrak = itemDate < sunZaOvajDan.sunrise || itemDate > sunZaOvajDan.sunset;
-                        } else {
-                            jeMrak = satNum < 5 || satNum > 20;
-                        }
-
-                        const temp = prosjekVrijednosti(data.hourly, "temperature_2m", gi);
-                        const feels = prosjekVrijednosti(data.hourly, "apparent_temperature", gi);
-
-                        return {
-                            fullIso: t,
-                            datum: datumStr,
-                            vreme: satTekst,
-                            satNum: satNum,
-                            temp: temp !== null ? Math.round(temp) : 0,
-                            feelsLike: feels !== null ? Math.round(feels) : (temp !== null ? Math.round(temp) : 0),
-                            vlaznost: (() => { const v = prosjekVrijednosti(data.hourly, "relative_humidity_2m", gi); return v !== null ? Math.round(v) : 0; })(),
-                            pop: (() => { const v = prosjekVrijednosti(data.hourly, "precipitation_probability", gi); return v !== null ? Math.round(v) : 0; })(),
-                            uv: (() => { const v = prosjekVrijednosti(data.hourly, "uv_index", gi); return v !== null ? Math.round(v) : 0; })(),
-                            vjetar: (() => { const v = prosjekVrijednosti(data.hourly, "wind_speed_10m", gi); return v !== null ? Math.round(v) : 0; })(),
-                            smjerVjetra: (() => { const v = prosjekSmjeraVjetra(data.hourly, gi); return v !== null ? v : 0; })(),
-                            pritisak: (() => { const v = prosjekVrijednosti(data.hourly, "pressure_msl", gi); return v !== null ? Math.round(v) : 0; })(),
-                            picto: code,
-                            jeMrak: jeMrak
-                        };
-                    });
+                    prognozaPodaci = izgradiProgozaPodaci(data.hourly, data.daily, offsetSekunde);
 
                     izgradiRollerSati();
                     setTimeout(() => skrolujNaIndex(0), 100);
