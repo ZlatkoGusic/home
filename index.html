@@ -579,9 +579,9 @@
             <div id="big-temp-val" class="big-temp-display">-- °C</div>
 
             <div class="sun-path-wrapper">
-                <svg id="sun-path-svg" class="sun-path-svg" viewBox="0 0 280 130" xmlns="http://www.w3.org/2000/svg">
+                <svg id="sun-path-svg" class="sun-path-svg" viewBox="0 0 280 150" xmlns="http://www.w3.org/2000/svg">
                     <g id="dnevni-grafikon-bg"></g>
-                    <line x1="8" y1="110" x2="272" y2="110" class="horizon-line"></line>
+                    <line x1="8" y1="108" x2="272" y2="108" class="horizon-line"></line>
                 </svg>
                 <div id="sun-path-status" class="sun-path-status">Računam poziciju sunca...</div>
             </div>
@@ -1747,7 +1747,12 @@
             const ukupnoMs = krajGrafikona - pocetakGrafikona;
             const xZaVrijeme = (t) => 20 + Math.min(1, Math.max(0, (t - pocetakGrafikona) / ukupnoMs)) * 240;
             const baznaY = 108; // linija horizonta (dno područja)
-            const VRH_GRAFIKONA = 14; // gornja granica cijelog grafikona
+            // FIX: "user friendly" - podignut je vrh SAME krive (VRH_GRAFIKONA) da
+            // ostavi posebnu zonu iznad (do ICON_ZONA_VRH) namijenjenu VEĆIM ikonicama
+            // i brojevima temperature, tako da imaju mjesta da "lebde" iznad krive bez
+            // preklapanja čak i na vrhuncu (najtoplijem satu).
+            const VRH_GRAFIKONA = 40; // gornja granica same temperaturne krive
+            const ICON_ZONA_VRH = 8;  // gornja granica cijelog grafikona (za ikonice/brojeve)
 
             // Pozadinske trake dan/noć - noćni dio (prije izlaska i/ili poslije
             // zalaska unutar 05h-23h prozora) dobija tamniju/muklu pozadinu, tako
@@ -1756,9 +1761,9 @@
                 const xKraj = Math.min(260, xZaVrijeme(sunInfo.sunrise));
                 const nocJutro = document.createElementNS(ns, 'rect');
                 nocJutro.setAttribute('x', '20');
-                nocJutro.setAttribute('y', VRH_GRAFIKONA.toFixed(1));
+                nocJutro.setAttribute('y', ICON_ZONA_VRH.toFixed(1));
                 nocJutro.setAttribute('width', (xKraj - 20).toFixed(1));
-                nocJutro.setAttribute('height', (baznaY - VRH_GRAFIKONA).toFixed(1));
+                nocJutro.setAttribute('height', (baznaY - ICON_ZONA_VRH).toFixed(1));
                 nocJutro.setAttribute('fill', '#1e293b');
                 nocJutro.setAttribute('opacity', '0.12');
                 grupa.appendChild(nocJutro);
@@ -1767,9 +1772,9 @@
                 const xPocetak = Math.max(20, xZaVrijeme(sunInfo.sunset));
                 const nocVece = document.createElementNS(ns, 'rect');
                 nocVece.setAttribute('x', xPocetak.toFixed(1));
-                nocVece.setAttribute('y', VRH_GRAFIKONA.toFixed(1));
+                nocVece.setAttribute('y', ICON_ZONA_VRH.toFixed(1));
                 nocVece.setAttribute('width', (260 - xPocetak).toFixed(1));
-                nocVece.setAttribute('height', (baznaY - VRH_GRAFIKONA).toFixed(1));
+                nocVece.setAttribute('height', (baznaY - ICON_ZONA_VRH).toFixed(1));
                 nocVece.setAttribute('fill', '#1e293b');
                 nocVece.setAttribute('opacity', '0.12');
                 grupa.appendChild(nocVece);
@@ -1866,7 +1871,7 @@
             }
 
             // 6) Tanke vertikalne linije na svaka 3 sata (05,08,11,14,17,20,23) +
-            // oznaka vremena ispod + ikonica vremenskih uslova iznad krive - kao osa
+            // oznaka vremena ispod + ikonica I BROJ TEMPERATURE iznad krive - kao osa
             // klasičnog grafikona. Koristimo getUTCHours (ne getHours!) jer su sva
             // vremena parsirana kao UTC-oznaceni "lokalni sat" lokacije - vidi
             // parsirajApiVrijeme/napomenu u dajPodatke.
@@ -1874,7 +1879,7 @@
                 const x = xZaVrijeme(h);
                 const gridLinija = document.createElementNS(ns, 'line');
                 gridLinija.setAttribute('x1', x.toFixed(1));
-                gridLinija.setAttribute('y1', VRH_GRAFIKONA.toFixed(1));
+                gridLinija.setAttribute('y1', ICON_ZONA_VRH.toFixed(1));
                 gridLinija.setAttribute('x2', x.toFixed(1));
                 gridLinija.setAttribute('y2', baznaY.toFixed(1));
                 gridLinija.setAttribute('stroke', '#cbd5e1');
@@ -1882,30 +1887,52 @@
                 gridLinija.setAttribute('opacity', '0.6');
                 grupa.appendChild(gridLinija);
 
+                // FIX: "user friendly" - podebljan i uvećan tekst sata (bio je 8px,
+                // jedva vidljiv na mobitelu).
                 const gridLabel = document.createElementNS(ns, 'text');
                 gridLabel.setAttribute('x', x.toFixed(1));
-                gridLabel.setAttribute('y', '120');
+                gridLabel.setAttribute('y', '123');
                 gridLabel.setAttribute('text-anchor', 'middle');
-                gridLabel.setAttribute('font-size', '8');
-                gridLabel.setAttribute('fill', '#94a3b8');
+                gridLabel.setAttribute('font-size', '10');
+                gridLabel.setAttribute('font-weight', '700');
+                gridLabel.setAttribute('fill', '#64748b');
                 gridLabel.textContent = `${String(h.getUTCHours()).padStart(2, '0')}h`;
                 grupa.appendChild(gridLabel);
 
-                // FIX: ikonica se sad postavlja TAČNO IZNAD krive grafikona za taj
-                // sat (prateći je gore-dole), umjesto na fiksnoj visini uz horizont.
                 let gi2 = hourly.time.indexOf(h.toISOString().slice(0, 16));
                 if (gi2 !== -1) {
                     const kodZaIkonu = konsenzusKodVremena(hourly, gi2);
                     const jeMrakZaIkonu = h < sunInfo.sunrise || h > sunInfo.sunset;
+                    const tempZaOznaku = prosjekVrijednosti(hourly, "temperature_2m", gi2);
                     const yKrive = yPoVremenu[h.toISOString().slice(0, 16)];
-                    const yIkonice = yKrive !== undefined ? Math.max(VRH_GRAFIKONA + 4, yKrive - 9) : baznaY - 4;
+
+                    // FIX: "user friendly" - ikonica je uvećana (11px -> 17px) i
+                    // pomjerena vise iznad krive da napravi mjesta za broj temperature
+                    // iznad sebe. ICON_ZONA_VRH (posebna zona iznad same krive) sad
+                    // postoji bas za ovo, pa nema preklapanja ni na vrhuncu dana.
+                    const yIkonice = yKrive !== undefined ? Math.max(ICON_ZONA_VRH + 20, yKrive - 14) : baznaY - 4;
                     const ikonicaTxt = document.createElementNS(ns, 'text');
                     ikonicaTxt.setAttribute('x', x.toFixed(1));
                     ikonicaTxt.setAttribute('y', yIkonice.toFixed(1));
                     ikonicaTxt.setAttribute('text-anchor', 'middle');
-                    ikonicaTxt.setAttribute('font-size', '11');
+                    ikonicaTxt.setAttribute('font-size', '17');
                     ikonicaTxt.textContent = dajIkonuZaGrafikon(kodZaIkonu, jeMrakZaIkonu);
                     grupa.appendChild(ikonicaTxt);
+
+                    // NOVO: eksplicitan broj temperature iznad ikonice - bez ovoga se
+                    // temperatura mogla samo NASLUTITI iz boje/visine, sto trazi
+                    // dodatni napor od korisnika. Sada je broj tu, čitljiv na prvi pogled.
+                    if (tempZaOznaku !== null) {
+                        const tempTxt = document.createElementNS(ns, 'text');
+                        tempTxt.setAttribute('x', x.toFixed(1));
+                        tempTxt.setAttribute('y', (yIkonice - 11).toFixed(1));
+                        tempTxt.setAttribute('text-anchor', 'middle');
+                        tempTxt.setAttribute('font-size', '11');
+                        tempTxt.setAttribute('font-weight', '800');
+                        tempTxt.setAttribute('fill', '#334155');
+                        tempTxt.textContent = `${Math.round(tempZaOznaku)}°`;
+                        grupa.appendChild(tempTxt);
+                    }
                 }
             }
 
@@ -1915,10 +1942,11 @@
                 const tempOznake = minT + frak * rasponT;
                 const yOznake = baznaY - MIN_VISINA - frak * (MAX_VISINA - MIN_VISINA);
                 const yLabel = document.createElementNS(ns, 'text');
-                yLabel.setAttribute('x', '4');
+                yLabel.setAttribute('x', '3');
                 yLabel.setAttribute('y', (yOznake + 3).toFixed(1));
                 yLabel.setAttribute('text-anchor', 'start');
-                yLabel.setAttribute('font-size', '7.5');
+                yLabel.setAttribute('font-size', '9.5');
+                yLabel.setAttribute('font-weight', '600');
                 yLabel.setAttribute('fill', '#94a3b8');
                 yLabel.textContent = `${Math.round(tempOznake)}°`;
                 grupa.appendChild(yLabel);
@@ -1926,13 +1954,19 @@
 
             // 8) Vertikalna isprekidana linija - gdje smo TAČNO sada (stvarno
             // trenutno vrijeme, ne nužno izabrani/pregledani sat).
+            // FIX: prije se provjeravalo je li "sada" izmedju IZLASKA i ZALASKA
+            // sunca - pogresno, jer grafikon sad pokriva fiksnih 05h-23h (koji moze
+            // uključivati i sate prije izlaska/poslije zalaska). Linija "sada" bi
+            // se nepotrebno gubila npr. u 6h ujutro prije zimskog izlaska sunca,
+            // iako je taj sat vidljiv na grafikonu. Sad se provjerava protiv
+            // stvarnog prikazanog prozora (pocetakGrafikona..krajGrafikona).
             const offsetSekunde = zadnjaSirovaData.offsetSekunde || 0;
             const stvarnoSada = new Date(Date.now() + offsetSekunde * 1000);
-            if (stvarnoSada >= sunInfo.sunrise && stvarnoSada <= sunInfo.sunset) {
+            if (stvarnoSada >= pocetakGrafikona && stvarnoSada <= krajGrafikona) {
                 const xSada = xZaVrijeme(stvarnoSada);
                 const sadaLinija = document.createElementNS(ns, 'line');
                 sadaLinija.setAttribute('x1', xSada.toFixed(1));
-                sadaLinija.setAttribute('y1', '10');
+                sadaLinija.setAttribute('y1', ICON_ZONA_VRH.toFixed(1));
                 sadaLinija.setAttribute('x2', xSada.toFixed(1));
                 sadaLinija.setAttribute('y2', baznaY.toFixed(1));
                 sadaLinija.setAttribute('stroke', '#0f172a');
