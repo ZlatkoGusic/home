@@ -2009,8 +2009,8 @@
             document.getElementById('sunrise-val').innerText = formatVrijemeSati(sunInfo.sunrise);
             document.getElementById('sunset-val').innerText = formatVrijemeSati(sunInfo.sunset);
 
-            izgradiDnevniGrafikon(sunInfo, item.datum);
             azurirajTamnuTemu();
+            izgradiDnevniGrafikon(sunInfo, item.datum);
 
             const trenutak = parsirajApiVrijeme(item.fullIso);
 
