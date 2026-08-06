@@ -1951,10 +1951,12 @@
             }
 
             // 7) Lijeva Y-osa: temperatura od najniže do najviše dnevne, u 5 dijelova.
-            // FIX: raspon je sada RASTEGNUT preko CIJELE visine grafikona (od skoro
-            // dna do skoro vrha), umjesto da bude zbijen samo unutar uže zone krive -
-            // bolje iskorištava prostor i lakše se čita.
-            const Y_OSA_DNO = baznaY - 4, Y_OSA_VRH = ICON_ZONA_VRH + 8;
+            // FIX: Y-osa MORA koristiti ISTI raspon (MIN_VISINA..MAX_VISINA) kojim se
+            // pozicionira sama kriva (visinaZaTemp) - u prošloj verziji je Y-osa bila
+            // vještački rastegnuta preko šireg prostora "radi čitljivosti", zbog čega
+            // oznaka npr. "35°" više nije stajala na visini gdje se kriva za 35°C
+            // stvarno nalazi. Tačnost je važnija od dodatnog razmaka.
+            const Y_OSA_DNO = baznaY - MIN_VISINA, Y_OSA_VRH = baznaY - MAX_VISINA;
             for (let i = 0; i < 5; i++) {
                 const frak = i / 4; // 0, 0.25, 0.5, 0.75, 1
                 const tempOznake = minT + frak * rasponT;
