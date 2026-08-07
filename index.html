@@ -1734,11 +1734,7 @@
                 const t = parsirajApiVrijeme(hourly.time[gi]);
                 if (t >= pocetakGrafikona && t <= krajGrafikona) {
                     const temp = prosjekVrijednosti(hourly, "temperature_2m", gi);
-                    const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
-                    const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
-                    const code = konsenzusKodVremena(hourly, gi);
-                    const jeMrak = t < sunInfo.sunrise || t > sunInfo.sunset;
-                    if (temp !== null) uzorci.push({ t, temp, pop, oblacnost, code, jeMrak });
+                    if (temp !== null) uzorci.push({ t, temp });
                 }
             }
             if (uzorci.length < 2) return;
@@ -1794,23 +1790,15 @@
             const MIN_VISINA = 10, MAX_VISINA = baznaY - VRH_GRAFIKONA; // = 94
             const visinaZaTemp = (temp) => MIN_VISINA + ((temp - minT) / rasponT) * (MAX_VISINA - MIN_VISINA);
 
-            const dijeliTacke = [];
             const vrhTacke = [];
-            const kisneTacke = [];
             const yPoVremenu = {};
-            let imaKise = false;
 
             uzorci.forEach(u => {
                 const x = xZaVrijeme(u.t);
                 const ukupnaVisina = visinaZaTemp(u.temp);
-                const oblacnostPct = u.oblacnost !== null ? Math.min(100, Math.max(0, u.oblacnost)) : proceniOblacnostIzKoda(u.code);
                 const yTacke = baznaY - ukupnaVisina;
-                vrhTacke.push({ x, y: yTacke, temp: u.temp, oblacnost: oblacnostPct });
+                vrhTacke.push({ x, y: yTacke, temp: u.temp });
                 yPoVremenu[u.t.toISOString().slice(0, 16)] = yTacke;
-
-                const popPct = u.pop !== null ? Math.min(100, Math.max(0, u.pop)) : 0;
-                if (popPct > 10) imaKise = true;
-                kisneTacke.push({ x, y: baznaY - (popPct / 100) * 24 });
             });
 
             const tackeStr = (niz) => niz.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -1825,7 +1813,6 @@
             for (let i = 0; i < vrhTacke.length - 1; i++) {
                 const a = vrhTacke[i], b = vrhTacke[i + 1];
                 const prosjecnaTemp = (a.temp + b.temp) / 2;
-                const prosjecnaOblacnost = (a.oblacnost + b.oblacnost) / 2;
                 const tackeTrapeza = `${a.x.toFixed(1)},${baznaY.toFixed(1)} ${a.x.toFixed(1)},${a.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${baznaY.toFixed(1)}`;
 
                 const trapez = document.createElementNS(ns, 'polygon');
@@ -1833,19 +1820,6 @@
                 trapez.setAttribute('fill', bojaZaTemperaturu(prosjecnaTemp));
                 trapez.setAttribute('opacity', '0.55');
                 grupa.appendChild(trapez);
-
-                // FIX: "je li to izraženo" - veo je pojačan (bio je 0.1-0.55 raspon,
-                // sad 0.15-0.75) da oblačni sati budu vidno prigušeniji/mutniji, ne
-                // samo blago drugačiji. (Probao sam i dodati posebnu liniju/ivicu za
-                // oblake, ali se sudarala/gubila ispod brojeva temperature i glavne
-                // crvene konture - veo ostaje najčistiji način bez sukoba prostora.)
-                if (prosjecnaOblacnost > 8) {
-                    const veo = document.createElementNS(ns, 'polygon');
-                    veo.setAttribute('points', tackeTrapeza);
-                    veo.setAttribute('fill', '#64748b');
-                    veo.setAttribute('opacity', (0.15 + (prosjecnaOblacnost / 100) * 0.6).toFixed(2));
-                    grupa.appendChild(veo);
-                }
             }
 
             // 2) Podebljana spoljna kontura (vrh stuba) - linija koja se "diže"
@@ -1860,20 +1834,12 @@
             konturaLinija.setAttribute('opacity', '0.9');
             grupa.appendChild(konturaLinija);
 
-            // 5) Plava linija za % šanse kiše - SAMO ako danas uopšte ima kiše.
-            // FIX: ranije se ova linija uvijek crtala (ravna na dnu kad nema kiše) -
-            // sad potpuno izostaje ako nema realne šanse za kišu tog dana.
-            if (imaKise) {
-                const kisnaLinija = document.createElementNS(ns, 'polyline');
-                kisnaLinija.setAttribute('points', tackeStr(kisneTacke));
-                kisnaLinija.setAttribute('fill', 'none');
-                kisnaLinija.setAttribute('stroke', '#3b82f6');
-                kisnaLinija.setAttribute('stroke-width', '2.5');
-                kisnaLinija.setAttribute('stroke-linecap', 'round');
-                kisnaLinija.setAttribute('stroke-linejoin', 'round');
-                kisnaLinija.setAttribute('opacity', '0.85');
-                grupa.appendChild(kisnaLinija);
-            }
+            // FIX: "padavine i oblačno stavi kao vertikalne linije" - oblaci i kiša
+            // se više ne prikazuju kao suptilan "veo" preko cijelog segmenta (bilo je
+            // premalo izraženo), nego kao JASNE vertikalne linije na svakoj od 7
+            // linija sata (siva = % oblaka, plava kosa = % kiše) - vidi petlju ispod.
+            // Ovo takodje rjesava sudaranje sa brojevima temperature koje su ranije
+            // sprecavale posebnu liniju za oblake.
 
             // FIX: "u noćnom modu se slabo vide" - boje teksta na grafikonu se sada
             // biraju prema aktivnoj temi. Brojevi temperature su ranije bili tamno-
@@ -1947,18 +1913,53 @@
                         tempTxt.textContent = `${Math.round(tempZaOznaku)}°`;
                         grupa.appendChild(tempTxt);
                     }
+
+                    // NOVO: "padavine i oblačno stavi kao vertikalne linije" - siva
+                    // uspravna linija = % oblaka, plava KOSA (dijagonalna) linija =
+                    // % šanse za kišu. Obje se naslanjaju na horizont (baznaY) i rastu
+                    // prema gore srazmjerno izračunatom procentu za taj sat.
+                    const oblacnostZaOznaku = prosjekVrijednosti(hourly, "cloud_cover", gi2);
+                    const popZaOznaku = prosjekVrijednosti(hourly, "precipitation_probability", gi2);
+                    const oblacnostPct2 = oblacnostZaOznaku !== null ? Math.min(100, Math.max(0, oblacnostZaOznaku)) : proceniOblacnostIzKoda(kodZaIkonu);
+                    const popPct2 = popZaOznaku !== null ? Math.min(100, Math.max(0, popZaOznaku)) : 0;
+                    const MAX_LINIJA_VISINA = 22;
+
+                    if (oblacnostPct2 > 5) {
+                        const oblacnaVisina = (oblacnostPct2 / 100) * MAX_LINIJA_VISINA;
+                        const oblacnaLin = document.createElementNS(ns, 'line');
+                        oblacnaLin.setAttribute('x1', (x - 5).toFixed(1));
+                        oblacnaLin.setAttribute('y1', baznaY.toFixed(1));
+                        oblacnaLin.setAttribute('x2', (x - 5).toFixed(1));
+                        oblacnaLin.setAttribute('y2', (baznaY - oblacnaVisina).toFixed(1));
+                        oblacnaLin.setAttribute('stroke', '#94a3b8');
+                        oblacnaLin.setAttribute('stroke-width', '3');
+                        oblacnaLin.setAttribute('stroke-linecap', 'round');
+                        oblacnaLin.setAttribute('opacity', '0.8');
+                        grupa.appendChild(oblacnaLin);
+                    }
+                    if (popPct2 > 5) {
+                        const kisnaVisina = (popPct2 / 100) * MAX_LINIJA_VISINA;
+                        const kisnaLin = document.createElementNS(ns, 'line');
+                        kisnaLin.setAttribute('x1', (x + 5).toFixed(1));
+                        kisnaLin.setAttribute('y1', baznaY.toFixed(1));
+                        kisnaLin.setAttribute('x2', (x + 8).toFixed(1)); // pomak u stranu = "kosa" linija
+                        kisnaLin.setAttribute('y2', (baznaY - kisnaVisina).toFixed(1));
+                        kisnaLin.setAttribute('stroke', '#3b82f6');
+                        kisnaLin.setAttribute('stroke-width', '3');
+                        kisnaLin.setAttribute('stroke-linecap', 'round');
+                        kisnaLin.setAttribute('opacity', '0.8');
+                        grupa.appendChild(kisnaLin);
+                    }
                 }
             }
 
-            // 7) Lijeva Y-osa: temperatura od najniže do najviše dnevne, u 5 dijelova.
-            // FIX: Y-osa MORA koristiti ISTI raspon (MIN_VISINA..MAX_VISINA) kojim se
-            // pozicionira sama kriva (visinaZaTemp) - u prošloj verziji je Y-osa bila
-            // vještački rastegnuta preko šireg prostora "radi čitljivosti", zbog čega
-            // oznaka npr. "35°" više nije stajala na visini gdje se kriva za 35°C
-            // stvarno nalazi. Tačnost je važnija od dodatnog razmaka.
+            // 7) Lijeva Y-osa: SAMO najniža i najviša dnevna temperatura (pojednostavljeno
+            // sa ranijih 5 oznaka na 2, manje pretrpano). I dalje se poklapa TAČNO sa
+            // visinom na kojoj kriva stoji za tu temperaturu (isti MIN_VISINA/MAX_VISINA
+            // raspon kao i sama kriva).
             const Y_OSA_DNO = baznaY - MIN_VISINA, Y_OSA_VRH = baznaY - MAX_VISINA;
-            for (let i = 0; i < 5; i++) {
-                const frak = i / 4; // 0, 0.25, 0.5, 0.75, 1
+            [0, 1].forEach(i => {
+                const frak = i; // 0 = min, 1 = max
                 const tempOznake = minT + frak * rasponT;
                 const yOznake = Y_OSA_DNO - frak * (Y_OSA_DNO - Y_OSA_VRH);
                 const yLabel = document.createElementNS(ns, 'text');
@@ -1970,7 +1971,7 @@
                 yLabel.setAttribute('fill', bojaOsa);
                 yLabel.textContent = `${Math.round(tempOznake)}°`;
                 grupa.appendChild(yLabel);
-            }
+            });
 
             // 8) Vertikalna isprekidana linija - gdje smo TAČNO sada (stvarno
             // trenutno vrijeme, ne nužno izabrani/pregledani sat).
@@ -2014,7 +2015,19 @@
             azurirajTamnuTemu();
             izgradiDnevniGrafikon(sunInfo, item.datum);
 
-            const trenutak = parsirajApiVrijeme(item.fullIso);
+            // FIX: prije se ovaj status (postotak/odbrojavanje do zalaska/izlaska)
+            // računao prema VREMENU IZABRANOG SATA (npr. "20:00" iz pickera), ne
+            // prema stvarnom trenutnom vremenu - zato je moglo pisati "zalazak za 6
+            // min" iako je sat na telefonu već pokazivao 20:36, pola sata NAKON
+            // stvarnog zalaska u 20:06. Sad, ako je izabrani dan DANAS, koristi se
+            // stvarno "sada" vrijeme (isto kao linija "sada" i tamna tema) - precizno
+            // do minute. Ako je korisnik ručno skrolao na neki DRUGI dan, i dalje se
+            // koristi vrijeme tog sata (jer poređenje "stvarno sada" sa zalaskom sunca
+            // nekog drugog dana ne bi imalo smisla).
+            const offsetSekundeStatus = (zadnjaSirovaData && zadnjaSirovaData.offsetSekunde) || 0;
+            const stvarnoSadaStatus = new Date(Date.now() + offsetSekundeStatus * 1000);
+            const danasStrStatus = `${stvarnoSadaStatus.getUTCFullYear()}-${String(stvarnoSadaStatus.getUTCMonth() + 1).padStart(2, '0')}-${String(stvarnoSadaStatus.getUTCDate()).padStart(2, '0')}`;
+            const trenutak = (item.datum === danasStrStatus) ? stvarnoSadaStatus : parsirajApiVrijeme(item.fullIso);
 
             if (trenutak >= sunInfo.sunrise && trenutak <= sunInfo.sunset) {
                 const frakcija = (trenutak - sunInfo.sunrise) / (sunInfo.sunset - sunInfo.sunrise);
