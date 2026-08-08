@@ -1734,7 +1734,10 @@
                 const t = parsirajApiVrijeme(hourly.time[gi]);
                 if (t >= pocetakGrafikona && t <= krajGrafikona) {
                     const temp = prosjekVrijednosti(hourly, "temperature_2m", gi);
-                    if (temp !== null) uzorci.push({ t, temp });
+                    const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
+                    const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
+                    const code = konsenzusKodVremena(hourly, gi);
+                    if (temp !== null) uzorci.push({ t, temp, pop, oblacnost, code });
                 }
             }
             if (uzorci.length < 2) return;
@@ -1800,7 +1803,9 @@
                 const x = xZaVrijeme(u.t);
                 const ukupnaVisina = visinaZaTemp(u.temp);
                 const yTacke = baznaY - ukupnaVisina;
-                vrhTacke.push({ x, y: yTacke, temp: u.temp });
+                const oblacnostPct = u.oblacnost !== null ? Math.min(100, Math.max(0, u.oblacnost)) : proceniOblacnostIzKoda(u.code);
+                const popPct = u.pop !== null ? Math.min(100, Math.max(0, u.pop)) : 0;
+                vrhTacke.push({ x, y: yTacke, temp: u.temp, ukupnaVisina, oblacnostPct, popPct });
                 yPoVremenu[u.t.toISOString().slice(0, 16)] = yTacke;
             });
 
@@ -1837,12 +1842,41 @@
             konturaLinija.setAttribute('opacity', '0.9');
             grupa.appendChild(konturaLinija);
 
-            // FIX: "padavine i oblačno stavi kao vertikalne linije" - oblaci i kiša
-            // se više ne prikazuju kao suptilan "veo" preko cijelog segmenta (bilo je
-            // premalo izraženo), nego kao JASNE vertikalne linije na svakoj od 7
-            // linija sata (siva = % oblaka, plava kosa = % kiše) - vidi petlju ispod.
-            // Ovo takodje rjesava sudaranje sa brojevima temperature koje su ranije
-            // sprecavale posebnu liniju za oblake.
+            // NOVO: "vertikalna linija ide do crvene krivulje ako je 100% oblačno...
+            // dinamički podaci... linije kiše vertikalno ne koso" - oblaci/kiša se sad
+            // crtaju za SVAKI sat (ne samo svaka 3h na gridlines), pa se tačno vidi npr.
+            // da je oblačno baš 14h-17h, ne aproksimacija. Visina je srazmjerna VISINI
+            // KRIVE u tom satu (ukupnaVisina) - pri 100% linija dosegne tačno vrh krive
+            // (crvenu konturu), pri 50% pola te visine, itd. Kiša je uspravna (bez
+            // dijagonalnog pomaka od prije).
+            vrhTacke.forEach(v => {
+                if (v.oblacnostPct > 5) {
+                    const oblacnaVisina = (v.oblacnostPct / 100) * v.ukupnaVisina;
+                    const oblacnaLin = document.createElementNS(ns, 'line');
+                    oblacnaLin.setAttribute('x1', (v.x - 2).toFixed(1));
+                    oblacnaLin.setAttribute('y1', baznaY.toFixed(1));
+                    oblacnaLin.setAttribute('x2', (v.x - 2).toFixed(1));
+                    oblacnaLin.setAttribute('y2', (baznaY - oblacnaVisina).toFixed(1));
+                    oblacnaLin.setAttribute('stroke', '#94a3b8');
+                    oblacnaLin.setAttribute('stroke-width', '2.5');
+                    oblacnaLin.setAttribute('stroke-linecap', 'round');
+                    oblacnaLin.setAttribute('opacity', '0.85');
+                    grupa.appendChild(oblacnaLin);
+                }
+                if (v.popPct > 5) {
+                    const kisnaVisina = (v.popPct / 100) * v.ukupnaVisina;
+                    const kisnaLin = document.createElementNS(ns, 'line');
+                    kisnaLin.setAttribute('x1', (v.x + 2).toFixed(1));
+                    kisnaLin.setAttribute('y1', baznaY.toFixed(1));
+                    kisnaLin.setAttribute('x2', (v.x + 2).toFixed(1));
+                    kisnaLin.setAttribute('y2', (baznaY - kisnaVisina).toFixed(1));
+                    kisnaLin.setAttribute('stroke', '#3b82f6');
+                    kisnaLin.setAttribute('stroke-width', '2.5');
+                    kisnaLin.setAttribute('stroke-linecap', 'round');
+                    kisnaLin.setAttribute('opacity', '0.85');
+                    grupa.appendChild(kisnaLin);
+                }
+            });
 
             // FIX: "u noćnom modu se slabo vide" - boje teksta na grafikonu se sada
             // biraju prema aktivnoj temi. Brojevi temperature su ranije bili tamno-
@@ -1914,43 +1948,6 @@
                         tempTxt.setAttribute('fill', bojaBrojTemp);
                         tempTxt.textContent = `${Math.round(tempZaOznaku)}°`;
                         grupa.appendChild(tempTxt);
-                    }
-
-                    // "naglasi oblake da je user frendly... vislja linija više oblačno" -
-                    // sive/plave linije pojačane (deblje, viši maksimalni raspon, jača
-                    // providnost) da odnos "viša linija = veći procenat" bude odmah
-                    // jasan na prvi pogled.
-                    const oblacnostZaOznaku = prosjekVrijednosti(hourly, "cloud_cover", gi2);
-                    const popZaOznaku = prosjekVrijednosti(hourly, "precipitation_probability", gi2);
-                    const oblacnostPct2 = oblacnostZaOznaku !== null ? Math.min(100, Math.max(0, oblacnostZaOznaku)) : proceniOblacnostIzKoda(kodZaIkonu);
-                    const popPct2 = popZaOznaku !== null ? Math.min(100, Math.max(0, popZaOznaku)) : 0;
-                    const MAX_LINIJA_VISINA = 30;
-
-                    if (oblacnostPct2 > 5) {
-                        const oblacnaVisina = (oblacnostPct2 / 100) * MAX_LINIJA_VISINA;
-                        const oblacnaLin = document.createElementNS(ns, 'line');
-                        oblacnaLin.setAttribute('x1', (x - 5).toFixed(1));
-                        oblacnaLin.setAttribute('y1', baznaY.toFixed(1));
-                        oblacnaLin.setAttribute('x2', (x - 5).toFixed(1));
-                        oblacnaLin.setAttribute('y2', (baznaY - oblacnaVisina).toFixed(1));
-                        oblacnaLin.setAttribute('stroke', '#94a3b8');
-                        oblacnaLin.setAttribute('stroke-width', '4');
-                        oblacnaLin.setAttribute('stroke-linecap', 'round');
-                        oblacnaLin.setAttribute('opacity', '0.9');
-                        grupa.appendChild(oblacnaLin);
-                    }
-                    if (popPct2 > 5) {
-                        const kisnaVisina = (popPct2 / 100) * MAX_LINIJA_VISINA;
-                        const kisnaLin = document.createElementNS(ns, 'line');
-                        kisnaLin.setAttribute('x1', (x + 5).toFixed(1));
-                        kisnaLin.setAttribute('y1', baznaY.toFixed(1));
-                        kisnaLin.setAttribute('x2', (x + 9).toFixed(1)); // pomak u stranu = "kosa" linija
-                        kisnaLin.setAttribute('y2', (baznaY - kisnaVisina).toFixed(1));
-                        kisnaLin.setAttribute('stroke', '#3b82f6');
-                        kisnaLin.setAttribute('stroke-width', '4');
-                        kisnaLin.setAttribute('stroke-linecap', 'round');
-                        kisnaLin.setAttribute('opacity', '0.9');
-                        grupa.appendChild(kisnaLin);
                     }
                 }
             }
