@@ -969,7 +969,7 @@
             const ovajZahtjevId = zadnjiZahtjevId;
 
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
                 const res = await fetch(url);
 
                 if (ovajZahtjevId !== zadnjiZahtjevId) return; // stigao je noviji zahtjev u međuvremenu, ovaj ignorišemo
@@ -1736,8 +1736,9 @@
                     const temp = prosjekVrijednosti(hourly, "temperature_2m", gi);
                     const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
                     const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
+                    const mm = prosjekVrijednosti(hourly, "precipitation", gi);
                     const code = konsenzusKodVremena(hourly, gi);
-                    if (temp !== null) uzorci.push({ t, temp, pop, oblacnost, code });
+                    if (temp !== null) uzorci.push({ t, temp, pop, oblacnost, mm, code });
                 }
             }
             if (uzorci.length < 2) return;
@@ -1805,7 +1806,8 @@
                 const yTacke = baznaY - ukupnaVisina;
                 const oblacnostPct = u.oblacnost !== null ? Math.min(100, Math.max(0, u.oblacnost)) : proceniOblacnostIzKoda(u.code);
                 const popPct = u.pop !== null ? Math.min(100, Math.max(0, u.pop)) : 0;
-                vrhTacke.push({ x, y: yTacke, temp: u.temp, ukupnaVisina, oblacnostPct, popPct });
+                const mm = u.mm !== null ? Math.max(0, u.mm) : 0;
+                vrhTacke.push({ x, y: yTacke, temp: u.temp, ukupnaVisina, oblacnostPct, popPct, mm, t: u.t });
                 yPoVremenu[u.t.toISOString().slice(0, 16)] = yTacke;
             });
 
@@ -1889,6 +1891,45 @@
                 kisnaLinija.setAttribute('stroke-linejoin', 'round');
                 kisnaLinija.setAttribute('opacity', '0.8');
                 grupa.appendChild(kisnaLinija);
+
+                // NOVO: "kiša u mm" kao DOPUNSKI podatak - prikazuje se SAMO za sate
+                // koji su već prošli proveru "sigurna kiša" (isti uslovi kao gore).
+                // % ostaje glavni/pouzdaniji signal (odlučuje DA LI se kiša uopšte
+                // prikazuje); mm je tu samo da doda grubu procjenu jačine, grupisano
+                // po neprekidnim periodima kiše (ako ima npr. dva odvojena perioda
+                // kiše tokom dana, svaki dobija svoju oznaku).
+                let idx = 0;
+                while (idx < vrhTacke.length) {
+                    const v0 = vrhTacke[idx];
+                    const sigurno0 = v0.popPct >= PRAG_SIGURNE_KISE && v0.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                    if (sigurno0) {
+                        let j = idx, ukupnoMm = 0, minY = Infinity, xVrha = v0.x;
+                        while (j < vrhTacke.length) {
+                            const vj = vrhTacke[j];
+                            const sigurnoJ = vj.popPct >= PRAG_SIGURNE_KISE && vj.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                            if (!sigurnoJ) break;
+                            ukupnoMm += vj.mm;
+                            const yOveTacke = baznaY - (vj.popPct / 100) * vj.ukupnaVisina;
+                            if (yOveTacke < minY) { minY = yOveTacke; xVrha = vj.x; }
+                            j++;
+                        }
+                        if (ukupnoMm > 0.05) {
+                            const yLabelMm = Math.max(ICON_ZONA_VRH + 8, minY - 5);
+                            const mmLabel = document.createElementNS(ns, 'text');
+                            mmLabel.setAttribute('x', xVrha.toFixed(1));
+                            mmLabel.setAttribute('y', yLabelMm.toFixed(1));
+                            mmLabel.setAttribute('text-anchor', 'middle');
+                            mmLabel.setAttribute('font-size', '9');
+                            mmLabel.setAttribute('font-weight', '700');
+                            mmLabel.setAttribute('fill', '#1d4ed8');
+                            mmLabel.textContent = `${ukupnoMm.toFixed(1)}mm`;
+                            grupa.appendChild(mmLabel);
+                        }
+                        idx = j;
+                    } else {
+                        idx++;
+                    }
+                }
             }
 
             // 2) Podebljana spoljna kontura (vrh stuba) - linija koja se "diže"
