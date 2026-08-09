@@ -1830,6 +1830,67 @@
                 grupa.appendChild(trapez);
             }
 
+            // "spojene linije oblačnosti od-do sati, kiša samo kad je sigurno,
+            // provjeri da kiša ne pada iz vedrog neba" - oblaci i kiša su sad
+            // KONTINUIRANE (spojene) providne površine, ne pojedinačne crtice.
+            // Crtaju se PRIJE crvene konture da kontura ostane vidljiva na vrhu
+            // čak i kad oblačnost dostigne 100% (dodirne krivu).
+            //
+            // - Oblaci (sivo): visina svakog sata = % oblaka * visina krive u tom satu
+            //   (pri 100% dostiže tačno crvenu konturu), spojeno u glatku površinu
+            //   preko cijelog raspona - prirodno "od-do" prati stvarne sate naoblake.
+            //
+            // - Kiša (plavo): prikazuje se SAMO za sate koji ispunjavaju OBA uslova:
+            //   (1) % šanse za kišu je VISOK (>=65%, "sigurno će biti kiša" - ne
+            //   nagađanje na pola, kao ranije), I (2) postoji stvarna naoblaka
+            //   (>=25%) - fizička provjera da kiša doslovno ne može padati iz
+            //   potpuno vedrog neba, bez obzira šta jedan model možda kaže. Sati
+            //   koji ne ispunjavaju oba uslova imaju visinu 0, pa se prirodno
+            //   formira "brdo" plave površine samo tačno tamo gdje je kiša izvjesna.
+            const PRAG_SIGURNE_KISE = 65;
+            const MIN_OBLAKA_ZA_KISU = 25;
+
+            const oblacneTacke = vrhTacke.map(v => ({
+                x: v.x,
+                y: baznaY - (v.oblacnostPct / 100) * v.ukupnaVisina
+            }));
+            const kisneTackeSpojene = vrhTacke.map(v => {
+                const sigurnoPada = v.popPct >= PRAG_SIGURNE_KISE && v.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                return { x: v.x, y: sigurnoPada ? baznaY - (v.popPct / 100) * v.ukupnaVisina : baznaY };
+            });
+
+            const prvi = vrhTacke[0], zadnji = vrhTacke[vrhTacke.length - 1];
+
+            // Sivi oblačni sloj - providan "veo" preko temperaturne boje, ali sad
+            // kao jedna glatka, spojena površina (ne izolovane crtice).
+            const oblacnaPovrsina = document.createElementNS(ns, 'polygon');
+            const oblacniPoints = [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(oblacneTacke), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' ');
+            oblacnaPovrsina.setAttribute('points', oblacniPoints);
+            oblacnaPovrsina.setAttribute('fill', '#64748b');
+            oblacnaPovrsina.setAttribute('opacity', '0.4');
+            grupa.appendChild(oblacnaPovrsina);
+
+            // Plavi kišni sloj - samo tamo gdje je kiša STVARNO izvjesna (vidi uslove gore).
+            const imaIkakveKise = kisneTackeSpojene.some(t => t.y < baznaY);
+            if (imaIkakveKise) {
+                const kisnaPovrsina = document.createElementNS(ns, 'polygon');
+                const kisniPoints = [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(kisneTackeSpojene), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' ');
+                kisnaPovrsina.setAttribute('points', kisniPoints);
+                kisnaPovrsina.setAttribute('fill', '#3b82f6');
+                kisnaPovrsina.setAttribute('opacity', '0.5');
+                grupa.appendChild(kisnaPovrsina);
+
+                const kisnaLinija = document.createElementNS(ns, 'polyline');
+                kisnaLinija.setAttribute('points', tackeStr(kisneTackeSpojene));
+                kisnaLinija.setAttribute('fill', 'none');
+                kisnaLinija.setAttribute('stroke', '#1d4ed8');
+                kisnaLinija.setAttribute('stroke-width', '2');
+                kisnaLinija.setAttribute('stroke-linecap', 'round');
+                kisnaLinija.setAttribute('stroke-linejoin', 'round');
+                kisnaLinija.setAttribute('opacity', '0.8');
+                grupa.appendChild(kisnaLinija);
+            }
+
             // 2) Podebljana spoljna kontura (vrh stuba) - linija koja se "diže"
             // s temperaturom, glavni obris grafikona.
             const konturaLinija = document.createElementNS(ns, 'polyline');
@@ -1841,42 +1902,6 @@
             konturaLinija.setAttribute('stroke-linejoin', 'round');
             konturaLinija.setAttribute('opacity', '0.9');
             grupa.appendChild(konturaLinija);
-
-            // NOVO: "vertikalna linija ide do crvene krivulje ako je 100% oblačno...
-            // dinamički podaci... linije kiše vertikalno ne koso" - oblaci/kiša se sad
-            // crtaju za SVAKI sat (ne samo svaka 3h na gridlines), pa se tačno vidi npr.
-            // da je oblačno baš 14h-17h, ne aproksimacija. Visina je srazmjerna VISINI
-            // KRIVE u tom satu (ukupnaVisina) - pri 100% linija dosegne tačno vrh krive
-            // (crvenu konturu), pri 50% pola te visine, itd. Kiša je uspravna (bez
-            // dijagonalnog pomaka od prije).
-            vrhTacke.forEach(v => {
-                if (v.oblacnostPct > 5) {
-                    const oblacnaVisina = (v.oblacnostPct / 100) * v.ukupnaVisina;
-                    const oblacnaLin = document.createElementNS(ns, 'line');
-                    oblacnaLin.setAttribute('x1', (v.x - 2).toFixed(1));
-                    oblacnaLin.setAttribute('y1', baznaY.toFixed(1));
-                    oblacnaLin.setAttribute('x2', (v.x - 2).toFixed(1));
-                    oblacnaLin.setAttribute('y2', (baznaY - oblacnaVisina).toFixed(1));
-                    oblacnaLin.setAttribute('stroke', '#94a3b8');
-                    oblacnaLin.setAttribute('stroke-width', '2.5');
-                    oblacnaLin.setAttribute('stroke-linecap', 'round');
-                    oblacnaLin.setAttribute('opacity', '0.85');
-                    grupa.appendChild(oblacnaLin);
-                }
-                if (v.popPct > 5) {
-                    const kisnaVisina = (v.popPct / 100) * v.ukupnaVisina;
-                    const kisnaLin = document.createElementNS(ns, 'line');
-                    kisnaLin.setAttribute('x1', (v.x + 2).toFixed(1));
-                    kisnaLin.setAttribute('y1', baznaY.toFixed(1));
-                    kisnaLin.setAttribute('x2', (v.x + 2).toFixed(1));
-                    kisnaLin.setAttribute('y2', (baznaY - kisnaVisina).toFixed(1));
-                    kisnaLin.setAttribute('stroke', '#3b82f6');
-                    kisnaLin.setAttribute('stroke-width', '2.5');
-                    kisnaLin.setAttribute('stroke-linecap', 'round');
-                    kisnaLin.setAttribute('opacity', '0.85');
-                    grupa.appendChild(kisnaLin);
-                }
-            });
 
             // FIX: "u noćnom modu se slabo vide" - boje teksta na grafikonu se sada
             // biraju prema aktivnoj temi. Brojevi temperature su ranije bili tamno-
