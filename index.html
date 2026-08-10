@@ -1448,12 +1448,25 @@
                 "Nestabilno i kišovito narednih 71 sat - okvirno od ${MIN}°C do ${MAX}°C.",
                 "Spremite kišobran za naredna 3 dana, temperature variraju od ${MIN}°C do ${MAX}°C."
             ],
+            "3dana_kisa_kasnije": [
+                "Sutra i prekosutra ostaje mirno, ali kiša stiže krajem trodnevnog perioda - temperature od ${MIN}°C do ${MAX}°C.",
+                "Za kišobran još nema žurbe - stabilno do kraja perioda, kad se najavljuje kiša, uz ${MIN}°C do ${MAX}°C.",
+                "Naredna dva dana mirno, a onda kiša na vidiku - raspon temperatura ${MIN}°C do ${MAX}°C.",
+                "Prva dva dana bez drame, kiša se javlja tek pred kraj trodnevnog perioda - ${MIN}°C do ${MAX}°C.",
+                "Sutra i prekosutra suho, kiša čeka svoj red kasnije u periodu - temperature ${MIN}°C do ${MAX}°C."
+            ],
             "3dana_snijeg": [
                 "Naredna 3 dana donose snijeg - noću oko ${MIN}°C, danju tek do ${MAX}°C.",
                 "Zima pokazuje zube naredna 3 dana - snijeg i temperature od ${MIN}°C do ${MAX}°C.",
                 "Tri dana pod snijegom su pred nama, uz noćnih ${MIN}°C i dnevnih do ${MAX}°C.",
                 "Pripremite lopate za snijeg - naredna 3 dana donose ${MIN}°C do ${MAX}°C uz padavine.",
                 "Bijelo se sprema narednih dana - temperature od ${MIN}°C do ${MAX}°C uz snijeg."
+            ],
+            "3dana_snijeg_kasnije": [
+                "Sutra i prekosutra bez snijega, stiže tek krajem trodnevnog perioda - temperature ${MIN}°C do ${MAX}°C.",
+                "Prva dva dana mirno, snijeg se najavljuje kasnije u periodu - ${MIN}°C do ${MAX}°C.",
+                "Lopate još mogu pričekati - snijeg dolazi tek pred kraj perioda, uz ${MIN}°C do ${MAX}°C.",
+                "Naredna dva dana suho, bijelo se sprema tek kasnije - raspon ${MIN}°C do ${MAX}°C."
             ],
             "3dana_vruce": [
                 "Naredna 3 dana ostaju stabilna, ali i ekstremno vruća - danju i do ${MAX}°C, noću tek oko ${MIN}°C, klima ostaje glavna tema.",
@@ -1618,6 +1631,7 @@
             let min3D = tempSada - 5, max3D = tempSada + 5;
             let imaLiKiseU3Dana = false;
             let imaLiSnijegaU3Dana = false;
+            let imaLiKiseSutra = false;
             let svaTriDanaOblacna = false;
 
             if (globalDailyData && globalDailyData.time && globalDailyData.time.length) {
@@ -1636,6 +1650,14 @@
                         const kodovi3D = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => konsenzusKodVremena(globalDailyData, i));
                         imaLiKiseU3Dana = kodovi3D.some(c => c >= 51);
                         imaLiSnijegaU3Dana = kodovi3D.some(c => jeSnijeg(c));
+                        // FIX: prije se "kiša" tekst prikazivao ako BILO KOJI od naredna 3
+                        // dana ima kišu - čak i ako je to samo TREĆI dan, dok su sutra i
+                        // prekosutra potpuno vedri. Rezultat: rečenica "spremite kišobran
+                        // za naredna 3 dana" iako danas/sutra nema kiše ni na vidiku -
+                        // zbunjujuće i preuranjeno upozorenje. Sad se posebno provjerava
+                        // da li BAŠ SUTRA (kodovi3D[0]) ima kišu/snijeg, da bi se odlučilo
+                        // da li je poruka "kiša stiže" (hitno) ili "kiša tek kasnije".
+                        imaLiKiseSutra = kodovi3D[0] >= 51;
                         svaTriDanaOblacna = kodovi3D.every(c => c === 3);
                     }
                 }
@@ -1646,8 +1668,10 @@
             // period - svaka grana ima nekoliko varijanti teksta (bez ponavljanja iste dvaput
             // zaredom), umjesto jedne uvijek iste rečenice.
             let triDanaTekst;
-            if (imaLiKiseU3Dana) {
+            if (imaLiKiseU3Dana && imaLiKiseSutra) {
                 triDanaTekst = uzmiPametnuRecenicuMinMax(imaLiSnijegaU3Dana ? "3dana_snijeg" : "3dana_kisa", min3D, max3D);
+            } else if (imaLiKiseU3Dana && !imaLiKiseSutra) {
+                triDanaTekst = uzmiPametnuRecenicuMinMax(imaLiSnijegaU3Dana ? "3dana_snijeg_kasnije" : "3dana_kisa_kasnije", min3D, max3D);
             } else if (max3D >= 33) {
                 triDanaTekst = uzmiPametnuRecenicuMinMax("3dana_vruce", min3D, max3D);
             } else if (max3D <= 8) {
