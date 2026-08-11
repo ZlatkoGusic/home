@@ -645,6 +645,7 @@
                 <div class="info-label">UV Indeks</div>
                 <div class="info-value">
                     <span id="uv-val">--</span>
+                    <span id="uv-opis" class="wind-dir-text"></span>
                 </div>
             </div>
 
@@ -752,6 +753,16 @@
             const m = ukupnoMin % 60;
             if (h <= 0) return `${m} min`;
             return `${h}h ${m}min`;
+        }
+
+        function dajUVOpis(uv) {
+            // Standardna WHO skala UV indeksa - da broj sam po sebi ima kontekst
+            // (npr. "7" ne znači ništa laiku bez oznake da je to "Visok" rizik).
+            if (uv >= 11) return { tekst: "Ekstreman", boja: "#7c3aed" };
+            if (uv >= 8) return { tekst: "Vrlo visok", boja: "#dc2626" };
+            if (uv >= 6) return { tekst: "Visok", boja: "#f97316" };
+            if (uv >= 3) return { tekst: "Umjeren", boja: "#eab308" };
+            return { tekst: "Nizak", boja: "#22c55e" };
         }
 
         function dajIkonuVremena(code) {
@@ -1556,6 +1567,8 @@
                 ozbiljnoUpozorenje = `OLUJNI UDARI: Vjetar puše brzinom do ${vjetarSada} km/h, moguće štete na imovini!`;
             } else if (weatherCode >= 95) {
                 ozbiljnoUpozorenje = `NEVRIJEME U NAJAVI: Registrovane grmljavinske nepogode, sklonite se na sigurno!`;
+            } else if (uvSada >= 11) {
+                ozbiljnoUpozorenje = `EKSTREMAN UV INDEKS: ${uvSada}! Opekotine za par minuta - krema SPF50+, sjena, izbjegavajte podne sunce.`;
             }
 
             if (ozbiljnoUpozorenje) {
@@ -2222,6 +2235,10 @@
                 document.getElementById('humidity-val').innerText = `${podatak.vlaznost} %`;
                 document.getElementById('pop-val').innerText = `${podatak.pop} %`;
                 document.getElementById('uv-val').innerText = `${podatak.uv}`;
+                const uvOpis = dajUVOpis(podatak.uv);
+                const uvOpisEl = document.getElementById('uv-opis');
+                uvOpisEl.innerText = `(${uvOpis.tekst})`;
+                uvOpisEl.style.color = uvOpis.boja;
 
                 document.getElementById('wind-val').innerText = `${podatak.vjetar} km/h`;
                 const windArrow = document.getElementById('wind-arrow');
