@@ -980,18 +980,36 @@
             const ovajZahtjevId = zadnjiZahtjevId;
 
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,uv_index,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
-                const res = await fetch(url);
+                // FIX: "UV pokazuje 0" - UV indeks u Open-Meteo Forecast API-ju je
+                // izveden iz GFS modela (potvrdio sam ovo iz zvanične Open-Meteo
+                // dokumentacije), a NIJE nativno vezan ni za jedan od naša tri modela
+                // (ICON/ECMWF/ALADIN). Kad se traži sa &models=..., API vjerovatno ne
+                // vraća uv_index sufiksiran tim imenima jer to fizički nije "njihov"
+                // podatak - naš kod bi onda tiho pao na 0 umjesto stvarne vrijednosti.
+                // Zato UV vučemo POSEBNIM, jednostavnim pozivom (bez &models=), gdje je
+                // pouzdano dostupan, i spajamo ga u glavne podatke pod nesufiksiranim
+                // imenom ("uv_index") koje prosjekVrijednosti() već provjerava kao rezervni plan.
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
+                const uvUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=uv_index&timezone=auto&past_days=1&forecast_days=7`;
+
+                const [res, uvRes] = await Promise.all([fetch(url), fetch(uvUrl).catch(() => null)]);
 
                 if (ovajZahtjevId !== zadnjiZahtjevId) return; // stigao je noviji zahtjev u međuvremenu, ovaj ignorišemo
 
                 if (!res.ok) throw new Error("API odziv nije ispravan");
 
                 const data = await res.json();
+                let uvData = null;
+                if (uvRes && uvRes.ok) {
+                    try { uvData = await uvRes.json(); } catch (e) { uvData = null; }
+                }
 
                 if (ovajZahtjevId !== zadnjiZahtjevId) return; // provjera i nakon drugog "await" (parsiranje JSON-a)
 
                 if (data && data.hourly && data.daily) {
+                    if (uvData && uvData.hourly && uvData.hourly.uv_index) {
+                        data.hourly.uv_index = uvData.hourly.uv_index;
+                    }
                     // NAPOMENA/FIX: Open-Meteo (timezone=auto) vraća vrijeme BEZ oznake zone,
                     // vec u lokalnom vremenu odabrane lokacije. Ranije se "new Date(t)" i
                     // "new Date()" (uredjaj korisnika) direktno poredilo, sto je tacno SAMO
