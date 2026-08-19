@@ -176,9 +176,23 @@
         .sun-path-wrapper {
             width: 100%;
             margin: 6px 0 4px 0;
+            /* FIX: "skrolnem sa desna u lijevo... tri dana ukupno" - grafikon je sad
+               HORIZONTALNO SKROLABILAN (širi od kartice), umjesto statične slike za
+               jedan dan. overflow-x:auto omogućava prevlačenje prstom kroz 3 dana. */
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x proximity;
+            border-radius: 8px;
+        }
+        .sun-path-wrapper::-webkit-scrollbar {
+            height: 4px;
+        }
+        .sun-path-wrapper::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
         }
         .sun-path-svg {
-            width: 100%;
             height: auto;
             display: block;
             overflow: visible;
@@ -1771,330 +1785,293 @@
             return `rgb(${t[t.length - 1].boja.join(',')})`;
         }
 
-        function izgradiDnevniGrafikon(sunInfo, datumStr) {
+        function izgradiDnevniGrafikon(datumPocetni) {
             const grupa = document.getElementById('dnevni-grafikon-bg');
             grupa.innerHTML = '';
-            if (!zadnjaSirovaData || !sunInfo || !datumStr) return;
-
-            // FIX: grafikon sad pokriva FIKSAN raspon 05h-23h (ne više "izlazak do
-            // zalaska"), sa satima OZNAČENIM kao dan/noć prema stvarnom izlasku/
-            // zalasku sunca tog dana - tako se vidi prelaz u noć ako je npr. zalazak
-            // sunca prije 23h (rana zima), ili je jos noc u 5h (kasno ljeto/rano jutro).
-            const pocetakGrafikona = parsirajApiVrijeme(`${datumStr}T05:00`);
-            const krajGrafikona = parsirajApiVrijeme(`${datumStr}T23:00`);
-
-            const hourly = zadnjaSirovaData.hourly;
-            const uzorci = [];
-            for (let gi = 0; gi < hourly.time.length; gi++) {
-                const t = parsirajApiVrijeme(hourly.time[gi]);
-                if (t >= pocetakGrafikona && t <= krajGrafikona) {
-                    const temp = prosjekVrijednosti(hourly, "temperature_2m", gi);
-                    const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
-                    const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
-                    const mm = prosjekVrijednosti(hourly, "precipitation", gi);
-                    const code = konsenzusKodVremena(hourly, gi);
-                    if (temp !== null) uzorci.push({ t, temp, pop, oblacnost, mm, code });
-                }
-            }
-            if (uzorci.length < 2) return;
+            if (!zadnjaSirovaData || !datumPocetni) return;
 
             const ns = 'http://www.w3.org/2000/svg';
-            const ukupnoMs = krajGrafikona - pocetakGrafikona;
-            // FIX: lijeva granica pomjerena sa 20 na 32 da Y-osa (temperature lijevo)
-            // ima svoj prostor i ne preklapa se sa ikonicom na prvoj (05h) liniji.
-            // FIX: lijeva granica vraćena na 20 (bila pomjerena na 32 zbog Y-ose koja
-            // je sad uklonjena - temperature već postoje iznad svake ikonice na
-            // grafikonu, pa posebna Y-osa lijevo više nije potrebna).
-            const DATA_X_START = 20, DATA_X_END = 260;
-            const xZaVrijeme = (t) => DATA_X_START + Math.min(1, Math.max(0, (t - pocetakGrafikona) / ukupnoMs)) * (DATA_X_END - DATA_X_START);
-            const baznaY = 108; // linija horizonta (dno područja)
-            // FIX: "user friendly" - podignut je vrh SAME krive (VRH_GRAFIKONA) da
-            // ostavi posebnu zonu iznad (do ICON_ZONA_VRH) namijenjenu VEĆIM ikonicama
-            // i brojevima temperature, tako da imaju mjesta da "lebde" iznad krive bez
-            // preklapanja čak i na vrhuncu (najtoplijem satu).
-            const VRH_GRAFIKONA = 40; // gornja granica same temperaturne krive
-            const ICON_ZONA_VRH = 8;  // gornja granica cijelog grafikona (za ikonice/brojeve)
-
-            // Pozadinske trake dan/noć - noćni dio (prije izlaska i/ili poslije
-            // zalaska unutar 05h-23h prozora) dobija tamniju/muklu pozadinu, tako
-            // grafikon vizuelno "rotira" iz noći u dan i nazad u noć.
-            if (sunInfo.sunrise > pocetakGrafikona) {
-                const xKraj = Math.min(DATA_X_END, xZaVrijeme(sunInfo.sunrise));
-                const nocJutro = document.createElementNS(ns, 'rect');
-                nocJutro.setAttribute('x', DATA_X_START.toFixed(1));
-                nocJutro.setAttribute('y', ICON_ZONA_VRH.toFixed(1));
-                nocJutro.setAttribute('width', (xKraj - DATA_X_START).toFixed(1));
-                nocJutro.setAttribute('height', (baznaY - ICON_ZONA_VRH).toFixed(1));
-                nocJutro.setAttribute('fill', '#1e293b');
-                nocJutro.setAttribute('opacity', '0.12');
-                grupa.appendChild(nocJutro);
-            }
-            if (sunInfo.sunset < krajGrafikona) {
-                const xPocetak = Math.max(DATA_X_START, xZaVrijeme(sunInfo.sunset));
-                const nocVece = document.createElementNS(ns, 'rect');
-                nocVece.setAttribute('x', xPocetak.toFixed(1));
-                nocVece.setAttribute('y', ICON_ZONA_VRH.toFixed(1));
-                nocVece.setAttribute('width', (DATA_X_END - xPocetak).toFixed(1));
-                nocVece.setAttribute('height', (baznaY - ICON_ZONA_VRH).toFixed(1));
-                nocVece.setAttribute('fill', '#1e293b');
-                nocVece.setAttribute('opacity', '0.12');
-                grupa.appendChild(nocVece);
-            }
-
-            // FIX: visina "stuba" za svaki sat prati TEMPERATURU - viša temperatura
-            // = viši stub. MAX_VISINA je sad prosirena da najvisa dnevna temperatura
-            // dosegne skoro do samog vrha grafikona (VRH_GRAFIKONA), umjesto da
-            // ostavlja neiskoristen prostor iznad krive.
-            const temps = uzorci.map(u => u.temp);
-            const minT = Math.min(...temps);
-            const maxT = Math.max(...temps);
-            const rasponT = Math.max(1, maxT - minT);
-            const MIN_VISINA = 10, MAX_VISINA = baznaY - VRH_GRAFIKONA; // = 94
-            const visinaZaTemp = (temp) => MIN_VISINA + ((temp - minT) / rasponT) * (MAX_VISINA - MIN_VISINA);
-
-            const vrhTacke = [];
-            const yPoVremenu = {};
-
-            uzorci.forEach(u => {
-                const x = xZaVrijeme(u.t);
-                const ukupnaVisina = visinaZaTemp(u.temp);
-                const yTacke = baznaY - ukupnaVisina;
-                const oblacnostPct = u.oblacnost !== null ? Math.min(100, Math.max(0, u.oblacnost)) : proceniOblacnostIzKoda(u.code);
-                const popPct = u.pop !== null ? Math.min(100, Math.max(0, u.pop)) : 0;
-                const mm = u.mm !== null ? Math.max(0, u.mm) : 0;
-                vrhTacke.push({ x, y: yTacke, temp: u.temp, ukupnaVisina, oblacnostPct, popPct, mm, t: u.t });
-                yPoVremenu[u.t.toISOString().slice(0, 16)] = yTacke;
-            });
-
-            const tackeStr = (niz) => niz.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-
-            // 1) Popunjeno područje ISPOD krive obojeno gradijentom po STVARNOJ
-            // (apsolutnoj) temperaturi svakog segmenta - zelena za blago, žuto/
-            // narandžasto za toplije, crveno/tamnocrveno za ekstremnu vrućinu,
-            // plavo/tamnoplavo za ekstremnu hladnoću. Svaki segment (između dva
-            // susjedna sata) je zaseban trapez obojen prema prosječnoj temperaturi
-            // te dvije tačke - tako gradijent tačno prati stvarne vrijednosti,
-            // ne samo najvišu/najnižu tačku tog dana.
-            for (let i = 0; i < vrhTacke.length - 1; i++) {
-                const a = vrhTacke[i], b = vrhTacke[i + 1];
-                const prosjecnaTemp = (a.temp + b.temp) / 2;
-                const tackeTrapeza = `${a.x.toFixed(1)},${baznaY.toFixed(1)} ${a.x.toFixed(1)},${a.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${baznaY.toFixed(1)}`;
-
-                const trapez = document.createElementNS(ns, 'polygon');
-                trapez.setAttribute('points', tackeTrapeza);
-                trapez.setAttribute('fill', bojaZaTemperaturu(prosjecnaTemp));
-                trapez.setAttribute('opacity', '0.55');
-                grupa.appendChild(trapez);
-            }
-
-            // "spojene linije oblačnosti od-do sati, kiša samo kad je sigurno,
-            // provjeri da kiša ne pada iz vedrog neba" - oblaci i kiša su sad
-            // KONTINUIRANE (spojene) providne površine, ne pojedinačne crtice.
-            // Crtaju se PRIJE crvene konture da kontura ostane vidljiva na vrhu
-            // čak i kad oblačnost dostigne 100% (dodirne krivu).
-            //
-            // - Oblaci (sivo): visina svakog sata = % oblaka * visina krive u tom satu
-            //   (pri 100% dostiže tačno crvenu konturu), spojeno u glatku površinu
-            //   preko cijelog raspona - prirodno "od-do" prati stvarne sate naoblake.
-            //
-            // - Kiša (plavo): prikazuje se SAMO za sate koji ispunjavaju OBA uslova:
-            //   (1) % šanse za kišu je VISOK (>=65%, "sigurno će biti kiša" - ne
-            //   nagađanje na pola, kao ranije), I (2) postoji stvarna naoblaka
-            //   (>=25%) - fizička provjera da kiša doslovno ne može padati iz
-            //   potpuno vedrog neba, bez obzira šta jedan model možda kaže. Sati
-            //   koji ne ispunjavaju oba uslova imaju visinu 0, pa se prirodno
-            //   formira "brdo" plave površine samo tačno tamo gdje je kiša izvjesna.
+            const hourly = zadnjaSirovaData.hourly;
+            const baznaY = 108;
+            const VRH_GRAFIKONA = 40;
+            const ICON_ZONA_VRH = 8;
+            const MIN_VISINA = 10, MAX_VISINA = baznaY - VRH_GRAFIKONA; // = 68
+            const visinaZaTemp = (temp, minT, rasponT) => MIN_VISINA + ((temp - minT) / rasponT) * (MAX_VISINA - MIN_VISINA);
             const PRAG_SIGURNE_KISE = 65;
             const MIN_OBLAKA_ZA_KISU = 25;
 
-            const oblacneTacke = vrhTacke.map(v => ({
-                x: v.x,
-                y: baznaY - (v.oblacnostPct / 100) * v.ukupnaVisina
-            }));
-            const kisneTackeSpojene = vrhTacke.map(v => {
-                const sigurnoPada = v.popPct >= PRAG_SIGURNE_KISE && v.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
-                return { x: v.x, y: sigurnoPada ? baznaY - (v.popPct / 100) * v.ukupnaVisina : baznaY };
-            });
-
-            const prvi = vrhTacke[0], zadnji = vrhTacke[vrhTacke.length - 1];
-
-            // Sivi oblačni sloj - providan "veo" preko temperaturne boje, ali sad
-            // kao jedna glatka, spojena površina (ne izolovane crtice).
-            const oblacnaPovrsina = document.createElementNS(ns, 'polygon');
-            const oblacniPoints = [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(oblacneTacke), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' ');
-            oblacnaPovrsina.setAttribute('points', oblacniPoints);
-            oblacnaPovrsina.setAttribute('fill', '#64748b');
-            oblacnaPovrsina.setAttribute('opacity', '0.4');
-            grupa.appendChild(oblacnaPovrsina);
-
-            // Plavi kišni sloj - samo tamo gdje je kiša STVARNO izvjesna (vidi uslove gore).
-            const imaIkakveKise = kisneTackeSpojene.some(t => t.y < baznaY);
-            if (imaIkakveKise) {
-                const kisnaPovrsina = document.createElementNS(ns, 'polygon');
-                const kisniPoints = [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(kisneTackeSpojene), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' ');
-                kisnaPovrsina.setAttribute('points', kisniPoints);
-                kisnaPovrsina.setAttribute('fill', '#3b82f6');
-                kisnaPovrsina.setAttribute('opacity', '0.5');
-                grupa.appendChild(kisnaPovrsina);
-
-                const kisnaLinija = document.createElementNS(ns, 'polyline');
-                kisnaLinija.setAttribute('points', tackeStr(kisneTackeSpojene));
-                kisnaLinija.setAttribute('fill', 'none');
-                kisnaLinija.setAttribute('stroke', '#1d4ed8');
-                kisnaLinija.setAttribute('stroke-width', '2');
-                kisnaLinija.setAttribute('stroke-linecap', 'round');
-                kisnaLinija.setAttribute('stroke-linejoin', 'round');
-                kisnaLinija.setAttribute('opacity', '0.8');
-                grupa.appendChild(kisnaLinija);
-
-                // NOVO: "kiša u mm" kao DOPUNSKI podatak - prikazuje se SAMO za sate
-                // koji su već prošli proveru "sigurna kiša" (isti uslovi kao gore).
-                // % ostaje glavni/pouzdaniji signal (odlučuje DA LI se kiša uopšte
-                // prikazuje); mm je tu samo da doda grubu procjenu jačine, grupisano
-                // po neprekidnim periodima kiše (ako ima npr. dva odvojena perioda
-                // kiše tokom dana, svaki dobija svoju oznaku).
-                let idx = 0;
-                while (idx < vrhTacke.length) {
-                    const v0 = vrhTacke[idx];
-                    const sigurno0 = v0.popPct >= PRAG_SIGURNE_KISE && v0.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
-                    if (sigurno0) {
-                        let j = idx, ukupnoMm = 0, minY = Infinity, xVrha = v0.x;
-                        while (j < vrhTacke.length) {
-                            const vj = vrhTacke[j];
-                            const sigurnoJ = vj.popPct >= PRAG_SIGURNE_KISE && vj.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
-                            if (!sigurnoJ) break;
-                            ukupnoMm += vj.mm;
-                            const yOveTacke = baznaY - (vj.popPct / 100) * vj.ukupnaVisina;
-                            if (yOveTacke < minY) { minY = yOveTacke; xVrha = vj.x; }
-                            j++;
-                        }
-                        if (ukupnoMm > 0.05) {
-                            const yLabelMm = Math.max(ICON_ZONA_VRH + 8, minY - 5);
-                            const mmLabel = document.createElementNS(ns, 'text');
-                            mmLabel.setAttribute('x', xVrha.toFixed(1));
-                            mmLabel.setAttribute('y', yLabelMm.toFixed(1));
-                            mmLabel.setAttribute('text-anchor', 'middle');
-                            mmLabel.setAttribute('font-size', '9');
-                            mmLabel.setAttribute('font-weight', '700');
-                            mmLabel.setAttribute('fill', '#1d4ed8');
-                            mmLabel.textContent = `${ukupnoMm.toFixed(1)}mm`;
-                            grupa.appendChild(mmLabel);
-                        }
-                        idx = j;
-                    } else {
-                        idx++;
-                    }
-                }
-            }
-
-            // 2) Podebljana spoljna kontura (vrh stuba) - linija koja se "diže"
-            // s temperaturom, glavni obris grafikona.
-            const konturaLinija = document.createElementNS(ns, 'polyline');
-            konturaLinija.setAttribute('points', tackeStr(vrhTacke));
-            konturaLinija.setAttribute('fill', 'none');
-            konturaLinija.setAttribute('stroke', '#dc2626');
-            konturaLinija.setAttribute('stroke-width', '3');
-            konturaLinija.setAttribute('stroke-linecap', 'round');
-            konturaLinija.setAttribute('stroke-linejoin', 'round');
-            konturaLinija.setAttribute('opacity', '0.9');
-            grupa.appendChild(konturaLinija);
-
-            // FIX: "u noćnom modu se slabo vide" - boje teksta na grafikonu se sada
-            // biraju prema aktivnoj temi. Brojevi temperature su ranije bili tamno-
-            // sivi (#334155) koji je odličan na svijetloj pozadini, ali skoro nevidljiv
-            // na tamnoj pozadini kartice u noćnom modu.
             const jeTamniMod = document.body.classList.contains('dark-mode');
             const bojaBrojTemp = jeTamniMod ? '#f1f5f9' : '#334155';
             const bojaSat = jeTamniMod ? '#94a3b8' : '#64748b';
 
-            // 6) Tanke vertikalne linije na svaka 3 sata (05,08,11,14,17,20,23) +
-            // oznaka vremena ispod + ikonica I BROJ TEMPERATURE iznad krive - kao osa
-            // klasičnog grafikona. Koristimo getUTCHours (ne getHours!) jer su sva
-            // vremena parsirana kao UTC-oznaceni "lokalni sat" lokacije - vidi
-            // parsirajApiVrijeme/napomenu u dajPodatke.
-            for (let h = new Date(pocetakGrafikona); h <= krajGrafikona; h.setUTCHours(h.getUTCHours() + 3)) {
-                const x = xZaVrijeme(h);
-                const gridLinija = document.createElementNS(ns, 'line');
-                gridLinija.setAttribute('x1', x.toFixed(1));
-                gridLinija.setAttribute('y1', ICON_ZONA_VRH.toFixed(1));
-                gridLinija.setAttribute('x2', x.toFixed(1));
-                gridLinija.setAttribute('y2', baznaY.toFixed(1));
-                gridLinija.setAttribute('stroke', '#cbd5e1');
-                gridLinija.setAttribute('stroke-width', '1');
-                gridLinija.setAttribute('opacity', '0.6');
-                grupa.appendChild(gridLinija);
+            // FIX: "skrolnem sa desna u lijevo da se nadoveže na 23h sljedeći dan...
+            // tri dana na grafikonu ukupno" - grafikon sad prikazuje TRI UZASTOPNA
+            // DANA jedan pored drugog (svaki svojih 05h-23h), umjesto samo jednog.
+            // Svaki dan zauzima DAN_SIRINA piksela; SVG je ukupno 3x širi od kartice,
+            // pa .sun-path-wrapper (overflow-x:auto) omogućava skrolanje/prevlačenje
+            // kroz sva tri dana redom.
+            const DAN_SIRINA = 280;
+            const BROJ_DANA = 3;
 
-                // FIX: "user friendly" - podebljan i uvećan tekst sata (bio je 8px,
-                // jedva vidljiv na mobitelu).
-                const gridLabel = document.createElementNS(ns, 'text');
-                gridLabel.setAttribute('x', x.toFixed(1));
-                gridLabel.setAttribute('y', '123');
-                gridLabel.setAttribute('text-anchor', 'middle');
-                gridLabel.setAttribute('font-size', '10');
-                gridLabel.setAttribute('font-weight', '700');
-                gridLabel.setAttribute('fill', bojaSat);
-                gridLabel.textContent = `${String(h.getUTCHours()).padStart(2, '0')}h`;
-                grupa.appendChild(gridLabel);
+            const svgEl = document.getElementById('sun-path-svg');
+            svgEl.setAttribute('viewBox', `0 0 ${DAN_SIRINA * BROJ_DANA} 150`);
+            svgEl.style.width = `${DAN_SIRINA * BROJ_DANA}px`;
 
-                let gi2 = hourly.time.indexOf(h.toISOString().slice(0, 16));
-                if (gi2 !== -1) {
-                    const kodZaIkonu = konsenzusKodVremena(hourly, gi2);
-                    const jeMrakZaIkonu = h < sunInfo.sunrise || h > sunInfo.sunset;
-                    const tempZaOznaku = prosjekVrijednosti(hourly, "temperature_2m", gi2);
-                    const yKrive = yPoVremenu[h.toISOString().slice(0, 16)];
-
-                    // FIX: "user friendly" - ikonica je uvećana (11px -> 17px) i
-                    // pomjerena vise iznad krive da napravi mjesta za broj temperature
-                    // iznad sebe. ICON_ZONA_VRH (posebna zona iznad same krive) sad
-                    // postoji bas za ovo, pa nema preklapanja ni na vrhuncu dana.
-                    const yIkonice = yKrive !== undefined ? Math.max(ICON_ZONA_VRH + 20, yKrive - 14) : baznaY - 4;
-                    const ikonicaTxt = document.createElementNS(ns, 'text');
-                    ikonicaTxt.setAttribute('x', x.toFixed(1));
-                    ikonicaTxt.setAttribute('y', yIkonice.toFixed(1));
-                    ikonicaTxt.setAttribute('text-anchor', 'middle');
-                    ikonicaTxt.setAttribute('font-size', '17');
-                    ikonicaTxt.textContent = dajIkonuZaGrafikon(kodZaIkonu, jeMrakZaIkonu);
-                    grupa.appendChild(ikonicaTxt);
-
-                    // NOVO: eksplicitan broj temperature iznad ikonice - bez ovoga se
-                    // temperatura mogla samo NASLUTITI iz boje/visine, sto trazi
-                    // dodatni napor od korisnika. Sada je broj tu, čitljiv na prvi pogled.
-                    if (tempZaOznaku !== null) {
-                        const tempTxt = document.createElementNS(ns, 'text');
-                        tempTxt.setAttribute('x', x.toFixed(1));
-                        tempTxt.setAttribute('y', (yIkonice - 11).toFixed(1));
-                        tempTxt.setAttribute('text-anchor', 'middle');
-                        tempTxt.setAttribute('font-size', '11');
-                        tempTxt.setAttribute('font-weight', '800');
-                        tempTxt.setAttribute('fill', bojaBrojTemp);
-                        tempTxt.textContent = `${Math.round(tempZaOznaku)}°`;
-                        grupa.appendChild(tempTxt);
-                    }
-                }
-            }
-
-            // 8) Vertikalna isprekidana linija - gdje smo TAČNO sada (stvarno
-            // trenutno vrijeme, ne nužno izabrani/pregledani sat).
-            // FIX: prije se provjeravalo je li "sada" izmedju IZLASKA i ZALASKA
-            // sunca - pogresno, jer grafikon sad pokriva fiksnih 05h-23h (koji moze
-            // uključivati i sate prije izlaska/poslije zalaska). Linija "sada" bi
-            // se nepotrebno gubila npr. u 6h ujutro prije zimskog izlaska sunca,
-            // iako je taj sat vidljiv na grafikonu. Sad se provjerava protiv
-            // stvarnog prikazanog prozora (pocetakGrafikona..krajGrafikona).
             const offsetSekunde = zadnjaSirovaData.offsetSekunde || 0;
             const stvarnoSada = new Date(Date.now() + offsetSekunde * 1000);
-            if (stvarnoSada >= pocetakGrafikona && stvarnoSada <= krajGrafikona) {
-                const xSada = xZaVrijeme(stvarnoSada);
-                const sadaLinija = document.createElementNS(ns, 'line');
-                sadaLinija.setAttribute('x1', xSada.toFixed(1));
-                sadaLinija.setAttribute('y1', ICON_ZONA_VRH.toFixed(1));
-                sadaLinija.setAttribute('x2', xSada.toFixed(1));
-                sadaLinija.setAttribute('y2', baznaY.toFixed(1));
-                sadaLinija.setAttribute('stroke', '#0f172a');
-                sadaLinija.setAttribute('stroke-width', '1.5');
-                sadaLinija.setAttribute('stroke-dasharray', '3,3');
-                sadaLinija.setAttribute('opacity', '0.6');
-                grupa.appendChild(sadaLinija);
+
+            for (let dan = 0; dan < BROJ_DANA; dan++) {
+                const datumD = pomjeriDatumString(datumPocetni, dan);
+                const sunInfoD = globalSunMapa[datumD];
+                const xOffset = dan * DAN_SIRINA;
+
+                // Razdjelnik i datum na početku 2. i 3. dana
+                if (dan > 0) {
+                    const razdjelnik = document.createElementNS(ns, 'line');
+                    razdjelnik.setAttribute('x1', xOffset.toFixed(1));
+                    razdjelnik.setAttribute('y1', '4');
+                    razdjelnik.setAttribute('x2', xOffset.toFixed(1));
+                    razdjelnik.setAttribute('y2', baznaY.toFixed(1));
+                    razdjelnik.setAttribute('stroke', jeTamniMod ? '#334155' : '#cbd5e1');
+                    razdjelnik.setAttribute('stroke-width', '1.5');
+                    razdjelnik.setAttribute('stroke-dasharray', '2,2');
+                    grupa.appendChild(razdjelnik);
+
+                    const datumLabel = document.createElementNS(ns, 'text');
+                    const [, mj, dn] = datumD.split('-');
+                    datumLabel.setAttribute('x', (xOffset + 6).toFixed(1));
+                    datumLabel.setAttribute('y', '13');
+                    datumLabel.setAttribute('text-anchor', 'start');
+                    datumLabel.setAttribute('font-size', '9');
+                    datumLabel.setAttribute('font-weight', '700');
+                    datumLabel.setAttribute('fill', bojaSat);
+                    datumLabel.textContent = `${dn}.${mj}.`;
+                    grupa.appendChild(datumLabel);
+                }
+
+                if (!sunInfoD) continue;
+
+                const pocetakGrafikona = parsirajApiVrijeme(`${datumD}T05:00`);
+                const krajGrafikona = parsirajApiVrijeme(`${datumD}T23:00`);
+                const ukupnoMs = krajGrafikona - pocetakGrafikona;
+                const xZaVrijeme = (t) => xOffset + 20 + Math.min(1, Math.max(0, (t - pocetakGrafikona) / ukupnoMs)) * 240;
+
+                const uzorci = [];
+                for (let gi = 0; gi < hourly.time.length; gi++) {
+                    const t = parsirajApiVrijeme(hourly.time[gi]);
+                    if (t >= pocetakGrafikona && t <= krajGrafikona) {
+                        const temp = prosjekVrijednosti(hourly, "temperature_2m", gi);
+                        const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
+                        const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
+                        const mm = prosjekVrijednosti(hourly, "precipitation", gi);
+                        const code = konsenzusKodVremena(hourly, gi);
+                        if (temp !== null) uzorci.push({ t, temp, pop, oblacnost, mm, code });
+                    }
+                }
+                if (uzorci.length < 2) continue;
+
+                // Pozadinske trake dan/noć
+                if (sunInfoD.sunrise > pocetakGrafikona) {
+                    const xKraj = Math.min(xOffset + 260, xZaVrijeme(sunInfoD.sunrise));
+                    const nocJutro = document.createElementNS(ns, 'rect');
+                    nocJutro.setAttribute('x', (xOffset + 20).toFixed(1));
+                    nocJutro.setAttribute('y', ICON_ZONA_VRH.toFixed(1));
+                    nocJutro.setAttribute('width', (xKraj - (xOffset + 20)).toFixed(1));
+                    nocJutro.setAttribute('height', (baznaY - ICON_ZONA_VRH).toFixed(1));
+                    nocJutro.setAttribute('fill', '#1e293b');
+                    nocJutro.setAttribute('opacity', '0.12');
+                    grupa.appendChild(nocJutro);
+                }
+                if (sunInfoD.sunset < krajGrafikona) {
+                    const xPocetak = Math.max(xOffset + 20, xZaVrijeme(sunInfoD.sunset));
+                    const nocVece = document.createElementNS(ns, 'rect');
+                    nocVece.setAttribute('x', xPocetak.toFixed(1));
+                    nocVece.setAttribute('y', ICON_ZONA_VRH.toFixed(1));
+                    nocVece.setAttribute('width', ((xOffset + 260) - xPocetak).toFixed(1));
+                    nocVece.setAttribute('height', (baznaY - ICON_ZONA_VRH).toFixed(1));
+                    nocVece.setAttribute('fill', '#1e293b');
+                    nocVece.setAttribute('opacity', '0.12');
+                    grupa.appendChild(nocVece);
+                }
+
+                const temps = uzorci.map(u => u.temp);
+                const minT = Math.min(...temps);
+                const maxT = Math.max(...temps);
+                const rasponT = Math.max(1, maxT - minT);
+
+                const vrhTacke = [];
+                uzorci.forEach(u => {
+                    const x = xZaVrijeme(u.t);
+                    const ukupnaVisina = visinaZaTemp(u.temp, minT, rasponT);
+                    const yTacke = baznaY - ukupnaVisina;
+                    const oblacnostPct = u.oblacnost !== null ? Math.min(100, Math.max(0, u.oblacnost)) : proceniOblacnostIzKoda(u.code);
+                    const popPct = u.pop !== null ? Math.min(100, Math.max(0, u.pop)) : 0;
+                    const mm = u.mm !== null ? Math.max(0, u.mm) : 0;
+                    vrhTacke.push({ x, y: yTacke, temp: u.temp, ukupnaVisina, oblacnostPct, popPct, mm });
+                });
+
+                const tackeStr = (niz) => niz.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+                // Temperaturni gradijent - popunjeno područje
+                for (let i = 0; i < vrhTacke.length - 1; i++) {
+                    const a = vrhTacke[i], b = vrhTacke[i + 1];
+                    const prosjecnaTemp = (a.temp + b.temp) / 2;
+                    const tackeTrapeza = `${a.x.toFixed(1)},${baznaY.toFixed(1)} ${a.x.toFixed(1)},${a.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${baznaY.toFixed(1)}`;
+                    const trapez = document.createElementNS(ns, 'polygon');
+                    trapez.setAttribute('points', tackeTrapeza);
+                    trapez.setAttribute('fill', bojaZaTemperaturu(prosjecnaTemp));
+                    trapez.setAttribute('opacity', '0.55');
+                    grupa.appendChild(trapez);
+                }
+
+                // Oblaci (sivo, spojeno) i kiša (plavo, spojeno, samo kad je sigurna)
+                const oblacneTacke = vrhTacke.map(v => ({ x: v.x, y: baznaY - (v.oblacnostPct / 100) * v.ukupnaVisina }));
+                const kisneTackeSpojene = vrhTacke.map(v => {
+                    const sigurnoPada = v.popPct >= PRAG_SIGURNE_KISE && v.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                    return { x: v.x, y: sigurnoPada ? baznaY - (v.popPct / 100) * v.ukupnaVisina : baznaY };
+                });
+                const prvi = vrhTacke[0], zadnji = vrhTacke[vrhTacke.length - 1];
+
+                const oblacnaPovrsina = document.createElementNS(ns, 'polygon');
+                oblacnaPovrsina.setAttribute('points', [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(oblacneTacke), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' '));
+                oblacnaPovrsina.setAttribute('fill', '#64748b');
+                oblacnaPovrsina.setAttribute('opacity', '0.4');
+                grupa.appendChild(oblacnaPovrsina);
+
+                const konturaLinija = document.createElementNS(ns, 'polyline');
+                konturaLinija.setAttribute('points', tackeStr(vrhTacke));
+                konturaLinija.setAttribute('fill', 'none');
+                konturaLinija.setAttribute('stroke', '#dc2626');
+                konturaLinija.setAttribute('stroke-width', '3');
+                konturaLinija.setAttribute('stroke-linecap', 'round');
+                konturaLinija.setAttribute('stroke-linejoin', 'round');
+                konturaLinija.setAttribute('opacity', '0.9');
+                grupa.appendChild(konturaLinija);
+
+                const imaIkakveKise = kisneTackeSpojene.some(t => t.y < baznaY);
+                if (imaIkakveKise) {
+                    const kisnaPovrsina = document.createElementNS(ns, 'polygon');
+                    kisnaPovrsina.setAttribute('points', [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(kisneTackeSpojene), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' '));
+                    kisnaPovrsina.setAttribute('fill', '#3b82f6');
+                    kisnaPovrsina.setAttribute('opacity', '0.5');
+                    grupa.appendChild(kisnaPovrsina);
+
+                    const kisnaLinija = document.createElementNS(ns, 'polyline');
+                    kisnaLinija.setAttribute('points', tackeStr(kisneTackeSpojene));
+                    kisnaLinija.setAttribute('fill', 'none');
+                    kisnaLinija.setAttribute('stroke', '#1d4ed8');
+                    kisnaLinija.setAttribute('stroke-width', '2');
+                    kisnaLinija.setAttribute('stroke-linecap', 'round');
+                    kisnaLinija.setAttribute('stroke-linejoin', 'round');
+                    kisnaLinija.setAttribute('opacity', '0.8');
+                    grupa.appendChild(kisnaLinija);
+
+                    let idx = 0;
+                    while (idx < vrhTacke.length) {
+                        const v0 = vrhTacke[idx];
+                        const sigurno0 = v0.popPct >= PRAG_SIGURNE_KISE && v0.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                        if (sigurno0) {
+                            let j = idx, ukupnoMm = 0, minY = Infinity, xVrha = v0.x;
+                            while (j < vrhTacke.length) {
+                                const vj = vrhTacke[j];
+                                const sigurnoJ = vj.popPct >= PRAG_SIGURNE_KISE && vj.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                                if (!sigurnoJ) break;
+                                ukupnoMm += vj.mm;
+                                const yOveTacke = baznaY - (vj.popPct / 100) * vj.ukupnaVisina;
+                                if (yOveTacke < minY) { minY = yOveTacke; xVrha = vj.x; }
+                                j++;
+                            }
+                            if (ukupnoMm > 0.05) {
+                                const yLabelMm = Math.max(ICON_ZONA_VRH + 8, minY - 5);
+                                const mmLabel = document.createElementNS(ns, 'text');
+                                mmLabel.setAttribute('x', xVrha.toFixed(1));
+                                mmLabel.setAttribute('y', yLabelMm.toFixed(1));
+                                mmLabel.setAttribute('text-anchor', 'middle');
+                                mmLabel.setAttribute('font-size', '9');
+                                mmLabel.setAttribute('font-weight', '700');
+                                mmLabel.setAttribute('fill', '#1d4ed8');
+                                mmLabel.textContent = `${ukupnoMm.toFixed(1)}mm`;
+                                grupa.appendChild(mmLabel);
+                            }
+                            idx = j;
+                        } else {
+                            idx++;
+                        }
+                    }
+                }
+
+                // Y lookup po satu (za pozicioniranje ikonica iznad krive)
+                const yPoVremenu = {};
+                uzorci.forEach((u, i) => { yPoVremenu[u.t.toISOString().slice(0, 16)] = vrhTacke[i].y; });
+
+                // Vertikalne linije svaka 3 sata + ikonica + broj temperature
+                const prviSat = new Date(pocetakGrafikona);
+                for (let h = new Date(prviSat); h <= krajGrafikona; h.setUTCHours(h.getUTCHours() + 3)) {
+                    const x = xZaVrijeme(h);
+                    const gridLinija = document.createElementNS(ns, 'line');
+                    gridLinija.setAttribute('x1', x.toFixed(1));
+                    gridLinija.setAttribute('y1', ICON_ZONA_VRH.toFixed(1));
+                    gridLinija.setAttribute('x2', x.toFixed(1));
+                    gridLinija.setAttribute('y2', baznaY.toFixed(1));
+                    gridLinija.setAttribute('stroke', '#cbd5e1');
+                    gridLinija.setAttribute('stroke-width', '1');
+                    gridLinija.setAttribute('opacity', '0.6');
+                    grupa.appendChild(gridLinija);
+
+                    const gridLabel = document.createElementNS(ns, 'text');
+                    gridLabel.setAttribute('x', x.toFixed(1));
+                    gridLabel.setAttribute('y', '123');
+                    gridLabel.setAttribute('text-anchor', 'middle');
+                    gridLabel.setAttribute('font-size', '10');
+                    gridLabel.setAttribute('font-weight', '700');
+                    gridLabel.setAttribute('fill', bojaSat);
+                    gridLabel.textContent = `${String(h.getUTCHours()).padStart(2, '0')}h`;
+                    grupa.appendChild(gridLabel);
+
+                    const gi2 = hourly.time.indexOf(h.toISOString().slice(0, 16));
+                    if (gi2 !== -1) {
+                        const kodZaIkonu = konsenzusKodVremena(hourly, gi2);
+                        const jeMrakZaIkonu = h < sunInfoD.sunrise || h > sunInfoD.sunset;
+                        const tempZaOznaku = prosjekVrijednosti(hourly, "temperature_2m", gi2);
+                        const yKrive = yPoVremenu[h.toISOString().slice(0, 16)];
+                        const yIkonice = yKrive !== undefined ? Math.max(ICON_ZONA_VRH + 20, yKrive - 14) : baznaY - 4;
+
+                        const ikonicaTxt = document.createElementNS(ns, 'text');
+                        ikonicaTxt.setAttribute('x', x.toFixed(1));
+                        ikonicaTxt.setAttribute('y', yIkonice.toFixed(1));
+                        ikonicaTxt.setAttribute('text-anchor', 'middle');
+                        ikonicaTxt.setAttribute('font-size', '17');
+                        ikonicaTxt.textContent = dajIkonuZaGrafikon(kodZaIkonu, jeMrakZaIkonu);
+                        grupa.appendChild(ikonicaTxt);
+
+                        if (tempZaOznaku !== null) {
+                            const tempTxt = document.createElementNS(ns, 'text');
+                            tempTxt.setAttribute('x', x.toFixed(1));
+                            tempTxt.setAttribute('y', (yIkonice - 11).toFixed(1));
+                            tempTxt.setAttribute('text-anchor', 'middle');
+                            tempTxt.setAttribute('font-size', '11');
+                            tempTxt.setAttribute('font-weight', '800');
+                            tempTxt.setAttribute('fill', bojaBrojTemp);
+                            tempTxt.textContent = `${Math.round(tempZaOznaku)}°`;
+                            grupa.appendChild(tempTxt);
+                        }
+                    }
+                }
+
+                // Linija "sada" - samo na dan(u) gdje stvarno pada
+                if (stvarnoSada >= pocetakGrafikona && stvarnoSada <= krajGrafikona) {
+                    const xSada = xZaVrijeme(stvarnoSada);
+                    const sadaLinija = document.createElementNS(ns, 'line');
+                    sadaLinija.setAttribute('x1', xSada.toFixed(1));
+                    sadaLinija.setAttribute('y1', ICON_ZONA_VRH.toFixed(1));
+                    sadaLinija.setAttribute('x2', xSada.toFixed(1));
+                    sadaLinija.setAttribute('y2', baznaY.toFixed(1));
+                    sadaLinija.setAttribute('stroke', '#0f172a');
+                    sadaLinija.setAttribute('stroke-width', '1.5');
+                    sadaLinija.setAttribute('stroke-dasharray', '3,3');
+                    sadaLinija.setAttribute('opacity', '0.6');
+                    grupa.appendChild(sadaLinija);
+                }
             }
         }
 
@@ -2113,7 +2090,7 @@
             document.getElementById('sunset-val').innerText = formatVrijemeSati(sunInfo.sunset);
 
             azurirajTamnuTemu();
-            izgradiDnevniGrafikon(sunInfo, item.datum);
+            izgradiDnevniGrafikon(item.datum);
 
             // FIX: prije se ovaj status (postotak/odbrojavanje do zalaska/izlaska)
             // računao prema VREMENU IZABRANOG SATA (npr. "20:00" iz pickera), ne
