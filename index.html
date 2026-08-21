@@ -1851,8 +1851,13 @@
 
                 if (!sunInfoD) continue;
 
-                const pocetakGrafikona = parsirajApiVrijeme(`${datumD}T05:00`);
-                const krajGrafikona = parsirajApiVrijeme(`${datumD}T23:00`);
+                // FIX: "podijeli sate na jednake dijelove svaka 3 sata... poslje 23h
+                // da ne bude sljedeći dan od 5 ujutro" - prozor je sad PUN DAN
+                // (00h-23h59), ne više 05h-23h. Sa punim danom, mreža od 3 sata
+                // (00,03,06,...,21) se savršeno nastavlja u sljedeći dan (21h + 3h =
+                // 00h sljedećeg dana, bez "rupe" i bez skoka na 05h).
+                const pocetakGrafikona = parsirajApiVrijeme(`${datumD}T00:00`);
+                const krajGrafikona = parsirajApiVrijeme(`${datumD}T23:59`);
                 const ukupnoMs = krajGrafikona - pocetakGrafikona;
                 const xZaVrijeme = (t) => xOffset + 20 + Math.min(1, Math.max(0, (t - pocetakGrafikona) / ukupnoMs)) * 240;
 
