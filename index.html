@@ -1929,12 +1929,8 @@
                     grupa.appendChild(trapez);
                 }
 
-                // Oblaci (sivo, spojeno) i kiša (plavo, spojeno, samo kad je sigurna)
+                // Oblaci (sivo, spojeno - ostaje glatka površina)
                 const oblacneTacke = vrhTacke.map(v => ({ x: v.x, y: baznaY - (v.oblacnostPct / 100) * v.ukupnaVisina }));
-                const kisneTackeSpojene = vrhTacke.map(v => {
-                    const sigurnoPada = v.popPct >= PRAG_SIGURNE_KISE && v.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
-                    return { x: v.x, y: sigurnoPada ? baznaY - (v.popPct / 100) * v.ukupnaVisina : baznaY };
-                });
                 const prvi = vrhTacke[0], zadnji = vrhTacke[vrhTacke.length - 1];
 
                 const oblacnaPovrsina = document.createElementNS(ns, 'polygon');
@@ -1953,24 +1949,31 @@
                 konturaLinija.setAttribute('opacity', '0.9');
                 grupa.appendChild(konturaLinija);
 
-                const imaIkakveKise = kisneTackeSpojene.some(t => t.y < baznaY);
+                // FIX: "ne krivulju za kišu nego vertikalne linije... ako je 100%
+                // kiša linija ide skroz do crvene linije" - kiša VIŠE NIJE spojena
+                // površina/kriva, nego POJEDINAČNA uspravna linija za svaki sat koji
+                // je "sigurna kiša" (isti uslov kao prije). Visina = % kiše * visina
+                // krive TOG sata - pri 100% linija tačno dodirne crvenu konturu.
+                let imaIkakveKise = false;
+                vrhTacke.forEach(v => {
+                    const sigurnoPada = v.popPct >= PRAG_SIGURNE_KISE && v.oblacnostPct >= MIN_OBLAKA_ZA_KISU;
+                    if (sigurnoPada) {
+                        imaIkakveKise = true;
+                        const visinaKise = (v.popPct / 100) * v.ukupnaVisina;
+                        const kisnaLin = document.createElementNS(ns, 'line');
+                        kisnaLin.setAttribute('x1', v.x.toFixed(1));
+                        kisnaLin.setAttribute('y1', baznaY.toFixed(1));
+                        kisnaLin.setAttribute('x2', v.x.toFixed(1));
+                        kisnaLin.setAttribute('y2', (baznaY - visinaKise).toFixed(1));
+                        kisnaLin.setAttribute('stroke', '#2563eb');
+                        kisnaLin.setAttribute('stroke-width', '2.5');
+                        kisnaLin.setAttribute('stroke-linecap', 'round');
+                        kisnaLin.setAttribute('opacity', '0.85');
+                        grupa.appendChild(kisnaLin);
+                    }
+                });
+
                 if (imaIkakveKise) {
-                    const kisnaPovrsina = document.createElementNS(ns, 'polygon');
-                    kisnaPovrsina.setAttribute('points', [`${prvi.x.toFixed(1)},${baznaY.toFixed(1)}`, tackeStr(kisneTackeSpojene), `${zadnji.x.toFixed(1)},${baznaY.toFixed(1)}`].join(' '));
-                    kisnaPovrsina.setAttribute('fill', '#3b82f6');
-                    kisnaPovrsina.setAttribute('opacity', '0.5');
-                    grupa.appendChild(kisnaPovrsina);
-
-                    const kisnaLinija = document.createElementNS(ns, 'polyline');
-                    kisnaLinija.setAttribute('points', tackeStr(kisneTackeSpojene));
-                    kisnaLinija.setAttribute('fill', 'none');
-                    kisnaLinija.setAttribute('stroke', '#1d4ed8');
-                    kisnaLinija.setAttribute('stroke-width', '2');
-                    kisnaLinija.setAttribute('stroke-linecap', 'round');
-                    kisnaLinija.setAttribute('stroke-linejoin', 'round');
-                    kisnaLinija.setAttribute('opacity', '0.8');
-                    grupa.appendChild(kisnaLinija);
-
                     let idx = 0;
                     while (idx < vrhTacke.length) {
                         const v0 = vrhTacke[idx];
