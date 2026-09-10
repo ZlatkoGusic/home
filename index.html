@@ -807,7 +807,9 @@
         }
 
         function stepeniUSmjer(deg) {
-            const strane = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+            // FIX: skraćenice prevedene na bosanski (sjever/jug/istok/zapad i
+            // kombinacije), umjesto engleskih N/S/E/W/NE/SE/SW/NW.
+            const strane = ["S", "SI", "I", "JI", "J", "JZ", "Z", "SZ"];
             return strane[Math.round(deg / 45) % 8];
         }
 
@@ -981,7 +983,7 @@
             skrolujNaIndex(zadrzaniIndex);
         }
 
-        async function dajPodatke(lat, lon) {
+        async function dajPodatke(lat, lon, sacuvajPoziciju = false) {
             const errorBox = document.getElementById('error-box');
             errorBox.style.display = 'none';
 
@@ -1036,10 +1038,20 @@
 
                     zadnjaSirovaData = { hourly: data.hourly, daily: data.daily, offsetSekunde: offsetSekunde };
 
+                    // FIX: "refresh svaka 3 sata" ne smije neočekivano vratiti korisnika
+                    // na "sada" ako trenutno gleda neki drugi sat (npr. sutrašnju
+                    // prognozu) - sačuvamo njegovu poziciju za tihi (automatski) refresh,
+                    // dok promjena grada i dalje ispravno resetuje na "sada" kao prije.
+                    const prethodniIndex = izabraniIndex;
                     prognozaPodaci = izgradiProgozaPodaci(data.hourly, data.daily, offsetSekunde);
 
                     izgradiRollerSati();
-                    setTimeout(() => skrolujNaIndex(0), 100);
+                    if (sacuvajPoziciju && prognozaPodaci.length > 0) {
+                        const noviIndex = Math.min(prethodniIndex, prognozaPodaci.length - 1);
+                        setTimeout(() => skrolujNaIndex(noviIndex), 100);
+                    } else {
+                        setTimeout(() => skrolujNaIndex(0), 100);
+                    }
                 }
             } catch (err) {
                 if (ovajZahtjevId !== zadnjiZahtjevId) return; // ne prikazuj gresku za zastarjeli zahtjev
@@ -2311,13 +2323,25 @@
             }
         }
 
-        async function promjeniGrad() {
+        async function promjeniGrad(sacuvajPoziciju = false) {
             const select = document.getElementById('city-select');
             const [lat, lon] = select.value.split(',');
-            await dajPodatke(lat, lon);
+            await dajPodatke(lat, lon, sacuvajPoziciju);
         }
 
         promjeniGrad();
+
+        // FIX: "refresh svaka 3 sata" - aplikacija ranije NIJE imala automatsko
+        // osvježavanje (podaci su ostajali isti dok god korisnik ručno ne promijeni
+        // grad ili ne otvori app iznova) - čak i da izađe novi ICON run (svaka 3h),
+        // prikaz se ne bi sam ažurirao. Sad se svaka 3 sata ponovo poziva
+        // promjeniGrad(true) koji čita TRENUTNO odabranu lokaciju (grad ili GPS - oboje
+        // ažuriraju isti <select>) i povlači svježe podatke za nju - prati frekvenciju
+        // najbržeg od naša tri modela (ICON). "true" znači "sačuvaj poziciju" - tihi
+        // refresh u pozadini neće izbaciti korisnika sa sata koji trenutno gleda.
+        setInterval(() => {
+            promjeniGrad(true);
+        }, 3 * 60 * 60 * 1000);
     </script>
 
 </body>
