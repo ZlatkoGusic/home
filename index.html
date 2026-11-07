@@ -402,30 +402,54 @@
         }
 
         .meteo-alert-box {
-            margin-top: 12px;
-            padding: 12px;
-            background-color: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 12px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
             text-align: left;
             display: none;
         }
-        .alert-header {
-            font-size: 0.7rem;
-            font-weight: 800;
-            color: #dc2626;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
+        .alert-text {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.35;
+        }
+        .mini-warn-row {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 8px;
         }
-        .alert-text {
-            font-size: 0.85rem;
+        .mini-warn-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .mini-warn-time {
+            color: #64748b;
             font-weight: 700;
-            color: #991b1b;
-            line-height: 1.4;
+        }
+        .mini-warn-label {
+            color: #0f172a;
+            font-weight: 800;
+        }
+        body.dark-mode .meteo-alert-box {
+            background-color: #141e30;
+            border-color: #263244;
+        }
+        body.dark-mode .alert-text {
+            color: #e2e8f0;
+        }
+        body.dark-mode .mini-warn-time {
+            color: #94a3b8;
+        }
+        body.dark-mode .mini-warn-label {
+            color: #f8fafc;
         }
 
         .picker-label {
@@ -749,20 +773,19 @@
                     <span id="sunset-val" class="sun-time-val">--:--</span>
                 </div>
             </div>
-            
+
+            <div id="meteo-alert-box" class="meteo-alert-box">
+                <div id="meteo-alert-text" class="alert-text"></div>
+            </div>
+
+            <!-- ZAKOMENTARISAN ŠALJIVI METEO IZVJEŠTAJ:
             <div class="combined-summary-box">
                 <div class="summary-header">⚡ Šaljivi meteo izvještaj</div>
                 <div id="combined-summary-text" class="summary-combined-text">
                     Učitavanje opuštene analize...
                 </div>
             </div>
-
-            <div id="meteo-alert-box" class="meteo-alert-box">
-                <div class="alert-header">🚨 OZBILJNO METEO UPOZORENJE (NIJE ŠALA)</div>
-                <div id="meteo-alert-text" class="alert-text">
-                    Aktivno upozorenje na ekstremne vremenske prilike...
-                </div>
-            </div>
+            -->
         </div>
 
         <div class="picker-label">Izaberi Sat</div>
@@ -1708,203 +1731,260 @@
             ]
         };
 
+        function izracunajMinutuPrelaza(preth, tren, tip) {
+            if (!preth) return 0;
+            let frak = 0.35;
+            if (tip === 'mraz') {
+                const tP = preth.temp, tC = tren.temp;
+                if (tP > 2 && tC <= 2) {
+                    frak = (tP - 2) / Math.max(0.2, tP - tC);
+                } else {
+                    return 0;
+                }
+            } else if (tip === 'vjetar') {
+                const vP = preth.vjetar, vC = tren.vjetar;
+                if (vP < 35 && vC >= 35) {
+                    frak = (35 - vP) / Math.max(1, vC - vP);
+                } else {
+                    return 0;
+                }
+            } else if (tip === 'vrucina') {
+                const tP = preth.temp, tC = tren.temp;
+                if (tP < 34 && tC >= 34) {
+                    frak = (34 - tP) / Math.max(0.2, tC - tP);
+                } else {
+                    return 0;
+                }
+            } else {
+                // Za grmljavinu, nevrijeme, kišu, snijeg, poledicu i maglu:
+                // procjenjujemo minutu ulaska fronta na osnovu porasta naoblake i šanse za padavine
+                const popP = preth.pop || 0, popC = tren.pop || 0;
+                const oblP = preth.oblacnost || 0, oblC = tren.oblacnost || 0;
+                if (popC > popP + 5) {
+                    const prag = Math.max(30, Math.min(55, (popP + popC) / 2));
+                    frak = (prag - popP) / Math.max(5, popC - popP);
+                } else if (oblC > oblP + 8) {
+                    frak = 1 - ((oblC - 60) / Math.max(10, oblC - oblP));
+                } else {
+                    frak = 0.33;
+                }
+            }
+            frak = Math.min(0.84, Math.max(0.0, frak));
+            const zaokruzeno10 = Math.round((frak * 60) / 10) * 10;
+            return Math.min(50, Math.max(0, zaokruzeno10));
+        }
+
+        function klasifikujUpozorenjeZaSat(u) {
+            const code = u.code;
+            const temp = u.temp;
+            const pop = u.pop;
+            const mm = u.mm;
+            const vjetar = u.vjetar;
+            const obl = u.oblacnost;
+            const uv = u.uv;
+
+            // 1. Nevrijeme (grmljavina s gradom, olujno grmljavinsko nevrijeme ili olujni vjetar uz jake padavine)
+            if (code >= 96 || (code === 95 && (vjetar >= 35 || mm >= 3.5)) || (vjetar >= 52 && (mm >= 2.0 || code >= 61))) {
+                return { kljuc: 'nevrijeme', tipPrelaza: 'padavine', naziv: 'Nevrijeme', boja: '#dc2626', prioritet: 1 };
+            }
+            // 2. Grmljavina
+            if (code === 95) {
+                return { kljuc: 'grmljavina', tipPrelaza: 'padavine', naziv: 'Grmljavina', boja: '#f59e0b', prioritet: 2 };
+            }
+            // 3. Poledica / ledena kiša
+            if (code === 56 || code === 57 || code === 66 || code === 67 || (temp <= 0 && (mm >= 0.2 || pop >= 55) && !jeSnijeg(code))) {
+                return { kljuc: 'poledica', tipPrelaza: 'padavine', naziv: 'Ledena kiša / poledica', boja: '#ef4444', prioritet: 3 };
+            }
+            // 4. Snijeg
+            if (jeSnijeg(code)) {
+                const jak = code === 75 || code === 86 || mm >= 2.5;
+                return { kljuc: 'snijeg', tipPrelaza: 'padavine', naziv: jak ? 'Jak snijeg' : 'Snijeg', boja: '#06b6d4', prioritet: 4 };
+            }
+            // 5. Kiša / pljusak
+            if ((code >= 80 && code <= 82) || (code >= 51 && code <= 65) || (pop >= 55 && obl >= 35) || mm >= 0.25) {
+                let nazivKise = 'Kiša';
+                if (code >= 81 || mm >= 3.5) nazivKise = 'Jak pljusak';
+                else if (code === 80 || mm >= 1.5) nazivKise = 'Pljusak';
+                else if (code >= 51 && code <= 55 && mm < 0.3 && pop < 65) nazivKise = 'Slaba kiša';
+                return { kljuc: 'kisa', tipPrelaza: 'padavine', naziv: nazivKise, boja: '#2563eb', prioritet: 5 };
+            }
+            // 6. Olujni ili jak vjetar
+            if (vjetar >= 35) {
+                return { kljuc: 'vjetar', tipPrelaza: 'vjetar', naziv: vjetar >= 50 ? 'Olujni vjetar' : 'Jak vjetar', boja: '#8b5cf6', prioritet: 6 };
+            }
+            // 7. Mraz
+            if (temp <= 2) {
+                return { kljuc: 'mraz', tipPrelaza: 'mraz', naziv: temp <= -3 ? 'Jak mraz' : 'Mraz', boja: '#38bdf8', prioritet: 7 };
+            }
+            // 8. Magla
+            if (code === 45 || code === 48) {
+                return { kljuc: 'magla', tipPrelaza: 'padavine', naziv: code === 48 ? 'Ledena magla' : 'Magla', boja: '#64748b', prioritet: 8 };
+            }
+            // 9. Ekstremna vrućina ili visok UV
+            if (temp >= 34 || uv >= 8) {
+                return { kljuc: 'vrucina', tipPrelaza: 'vrucina', naziv: temp >= 34 ? 'Velika vrućina' : 'Visok UV indeks', boja: '#f97316', prioritet: 9 };
+            }
+            return null;
+        }
+
         function generisiKombinovaniIzvjestajZaSat(fokusIndex) {
-            const summaryEl = document.getElementById('combined-summary-text');
             const alertBoxEl = document.getElementById('meteo-alert-box');
             const alertTextEl = document.getElementById('meteo-alert-text');
 
-            if (!prognozaPodaci || prognozaPodaci.length === 0) return;
+            if (!prognozaPodaci || prognozaPodaci.length === 0 || !zadnjaSirovaData) return;
 
-            const trenutniPodatak = prognozaPodaci[fokusIndex];
-            const prethodniPodatak = fokusIndex > 0 ? prognozaPodaci[fokusIndex - 1] : trenutniPodatak;
-            
-            const trenutniSat = trenutniPodatak.satNum;
-            const jeMrakSada = trenutniPodatak.jeMrak;
-            const tempSada = trenutniPodatak.temp;
-            const weatherCode = trenutniPodatak.picto;
-            const vjetarSada = trenutniPodatak.vjetar;
-            const uvSada = trenutniPodatak.uv;
-            const pritisakSada = trenutniPodatak.pritisak;
-            const pritisakPrethodni = prethodniPodatak.pritisak;
-            const tempRazlika = tempSada - prethodniPodatak.temp;
+            const hourly = zadnjaSirovaData.hourly;
+            const trenutniPodatak = prognozaPodaci[fokusIndex] || prognozaPodaci[0];
+            const offsetSekunde = zadnjaSirovaData.offsetSekunde || 0;
+            const stvarnoSada = new Date(Date.now() + offsetSekunde * 1000);
+            const danasStr = `${stvarnoSada.getUTCFullYear()}-${String(stvarnoSada.getUTCMonth() + 1).padStart(2, '0')}-${String(stvarnoSada.getUTCDate()).padStart(2, '0')}`;
+            const sutraStr = pomjeriDatumString(danasStr, 1);
 
-            let tipPrvogDijela = "dan_mirno";
-            let ozbiljnoUpozorenje = null;
-            let sokPoruka = "";
-            let preporukaAktivnosti = "";
+            let startGi = hourly.time.indexOf(trenutniPodatak.fullIso);
+            if (startGi === -1) startGi = 0;
+            const endGi = Math.min(hourly.time.length - 1, startGi + 48);
 
-            const sunInfoOvajDan = globalSunMapa[trenutniPodatak.datum];
-            const jeRanoJutro = sunInfoOvajDan && parsirajApiVrijeme(trenutniPodatak.fullIso) >= sunInfoOvajDan.sunrise && trenutniSat <= 10;
+            const uzorci48 = [];
+            for (let gi = Math.max(0, startGi - 1); gi <= endGi; gi++) {
+                const iso = hourly.time[gi];
+                const t = parsirajApiVrijeme(iso);
+                const datum = iso.split('T')[0];
+                const satTekst = iso.split('T')[1];
+                const satNum = parseInt(satTekst.split(':')[0], 10);
+                const temp = prosjekVrijednosti(hourly, "temperature_2m", gi);
+                const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
+                const mm = prosjekVrijednosti(hourly, "precipitation", gi);
+                const vjetar = prosjekVrijednosti(hourly, "wind_speed_10m", gi);
+                const obl = prosjekVrijednosti(hourly, "cloud_cover", gi);
+                const uv = prosjekVrijednosti(hourly, "uv_index", gi);
+                const code = konsenzusKodVremena(hourly, gi);
 
-            if (Math.abs(tempRazlika) >= 5) {
-                if (tempRazlika > 0) {
-                    sokPoruka = `Pazi ovo: nagli skok od ${Math.abs(tempRazlika)} stepeni! Vrijeme je totalno poludjelo.`;
+                uzorci48.push({
+                    gi, iso, t, datum, satNum,
+                    temp: temp !== null ? temp : 10,
+                    pop: pop !== null ? pop : 0,
+                    mm: mm !== null ? mm : 0,
+                    vjetar: vjetar !== null ? vjetar : 0,
+                    oblacnost: obl !== null ? obl : proceniOblacnostIzKoda(code),
+                    uv: uv !== null ? uv : 0,
+                    code
+                });
+            }
+
+            // Grupisanje uzastopnih sati istog tipa pojave u minimalističke događaje
+            const dogadjaji = [];
+            let aktivniBlok = null;
+
+            for (let i = 0; i < uzorci48.length; i++) {
+                const u = uzorci48[i];
+                if (u.gi < startGi) continue;
+
+                const preth = i > 0 ? uzorci48[i - 1] : null;
+                const stanje = klasifikujUpozorenjeZaSat(u);
+
+                if (stanje) {
+                    if (aktivniBlok && aktivniBlok.kljuc === stanje.kljuc) {
+                        aktivniBlok.trajanjeSati++;
+                        if (stanje.prioritet < aktivniBlok.prioritet || stanje.naziv.startsWith('Jak')) {
+                            aktivniBlok.naziv = stanje.naziv;
+                            aktivniBlok.boja = stanje.boja;
+                        }
+                    } else {
+                        if (aktivniBlok) dogadjaji.push(aktivniBlok);
+                        const jeOdmahNaStartu = (u.gi === startGi);
+                        const prethStanje = preth ? klasifikujUpozorenjeZaSat(preth) : null;
+                        const vecTrajalo = prethStanje && prethStanje.kljuc === stanje.kljuc;
+
+                        let minPrelaza = 0;
+                        if (jeOdmahNaStartu && vecTrajalo && fokusIndex === 0 && u.datum === danasStr) {
+                            minPrelaza = Math.floor(stvarnoSada.getUTCMinutes() / 5) * 5;
+                        } else if (!vecTrajalo) {
+                            minPrelaza = izracunajMinutuPrelaza(preth, u, stanje.tipPrelaza);
+                        }
+
+                        aktivniBlok = {
+                            kljuc: stanje.kljuc,
+                            naziv: stanje.naziv,
+                            boja: stanje.boja,
+                            prioritet: stanje.prioritet,
+                            datum: u.datum,
+                            satNum: u.satNum,
+                            minNum: minPrelaza,
+                            trajanjeSati: 1,
+                            jeOdmahNaStartu: jeOdmahNaStartu
+                        };
+                    }
                 } else {
-                    sokPoruka = `Evo iznenadjenja: temperatura je pala za ${Math.abs(tempRazlika)} stepeni! Pritisak trpi, glave oprez.`;
-                }
-            } else if ((pritisakPrethodni - pritisakSada) >= 4) {
-                sokPoruka = `Barometar je opasno potonuo, meteopati i hronični bolesnici, držite se!`;
-            }
-
-            if (weatherCode === 0 && vjetarSada < 15 && uvSada < 6 && tempSada >= 18 && tempSada <= 28) {
-                preporukaAktivnosti = uzmiPametnuRecenicu("aktivnost_rostilj", tempSada);
-            } else if (weatherCode === 0 && (tempSada >= 12 && tempSada <= 24) && vjetarSada < 20) {
-                preporukaAktivnosti = uzmiPametnuRecenicu("aktivnost_pecanje", tempSada);
-            } else if (vjetarSada >= 40) {
-                preporukaAktivnosti = uzmiPametnuRecenicu("aktivnost_vjetar", tempSada);
-            } else if (weatherCode >= 51) {
-                preporukaAktivnosti = uzmiPametnuRecenicu("aktivnost_kisa", tempSada);
-            }
-
-            if (tempSada <= 2 && jeLedenaPadavina(weatherCode)) {
-                ozbiljnoUpozorenje = `CRVENI ALARM: Ledena kiša i snijeg na ${tempSada}°C! Ceste su klizališta, oprez u vožnji.`;
-            } else if (tempSada <= 2 && weatherCode <= 2 && (jeMrakSada || jeRanoJutro)) {
-                ozbiljnoUpozorenje = `UPOZORENJE NA MRAZ: Temperatura pala na ${tempSada}°C uz opasnost od poledice i slane.`;
-            } else if (tempSada >= 35) {
-                ozbiljnoUpozorenje = `TOPLOTNI UDAR: Prži na ${tempSada}°C! Sklonite se sa sunca i pijte dovoljno vode.`;
-            } else if (vjetarSada >= 45) {
-                ozbiljnoUpozorenje = `OLUJNI UDARI: Vjetar puše brzinom do ${vjetarSada} km/h, moguće štete na imovini!`;
-            } else if (weatherCode >= 95) {
-                ozbiljnoUpozorenje = `NEVRIJEME U NAJAVI: Registrovane grmljavinske nepogode, sklonite se na sigurno!`;
-            } else if (uvSada >= 11) {
-                ozbiljnoUpozorenje = `EKSTREMAN UV INDEKS: ${uvSada}! Opekotine za par minuta - krema SPF50+, sjena, izbjegavajte podne sunce.`;
-            }
-
-            if (ozbiljnoUpozorenje) {
-                alertTextEl.innerText = ozbiljnoUpozorenje;
-                alertBoxEl.style.display = 'block';
-            } else {
-                alertBoxEl.style.display = 'none';
-            }
-
-            if (jeLedenaPadavina(weatherCode) && tempSada <= 0) {
-                tipPrvogDijela = "led_i_snijeg";
-            } else if (weatherCode === 45 || weatherCode === 48) {
-                tipPrvogDijela = "magla";
-            } else if (vjetarSada > 35) {
-                tipPrvogDijela = "vjetrovito";
-            } else if (tempSada <= 2 && weatherCode <= 2 && (jeMrakSada || jeRanoJutro)) {
-                tipPrvogDijela = "mraz";
-            } else if (jeMrakSada) {
-                // FIX: provjera "je li mrak" je i dalje ispred generičkog "oblačno" (dolje),
-                // jer su "oblačno" rečenice pisane iz dnevne perspektive (spominju sunce koje
-                // se "krije"), što nema smisla noću. Led/magla/vjetar imaju prioritet nad
-                // mrazom i nad noć/jutro granama jer ta stanja fizički isključuju "miran,
-                // vedar mraz" opis (magla i vjetar sprječavaju radijativno hlađenje/mraz,
-                // a aktivan snijeg/poledica je ozbiljnije stanje od pukog mraza).
-                tipPrvogDijela = trenutniPodatak.pop > 40 ? "noc_kisa" : (tempSada >= 25 ? "noc_vruce" : "noc_mirno");
-            } else if (jeRanoJutro) {
-                tipPrvogDijela = trenutniPodatak.pop > 40 ? "jutro_kisa" : (tempSada >= 22 ? "jutro_vruce" : "jutro_mirno");
-            } else if (weatherCode === 3) {
-                tipPrvogDijela = "oblacno";
-            } else {
-                tipPrvogDijela = trenutniPodatak.pop > 40 ? "dan_kisa" : (tempSada >= 30 ? "dan_vruce" : "dan_mirno");
-            }
-
-            const dioDanaTekst = uzmiPametnuRecenicu(tipPrvogDijela, tempSada);
-
-            const naredna3Sata = prognozaPodaci.slice(fokusIndex + 1, fokusIndex + 4);
-            const prosjekNaredna3 = naredna3Sata.length > 0 
-                ? Math.round(naredna3Sata.reduce((acc, curr) => acc + curr.temp, 0) / naredna3Sata.length) 
-                : tempSada;
-
-            const imaLiPadavinaU3Sata = naredna3Sata.some(p => p.pop > 40 || p.picto >= 51);
-            const imaLiSnijegaU3Sata = naredna3Sata.some(p => jeSnijeg(p.picto));
-            const imaLiLedaU3Sata = naredna3Sata.some(p => p.temp <= 2 && jeLedenaPadavina(p.picto));
-            const jeLiOblacnoU3Sata = naredna3Sata.some(p => p.picto === 3);
-            const jeLiMaglaU3Sata = naredna3Sata.some(p => p.picto === 45 || p.picto === 48);
-            const jeLiVjetrovitoU3Sata = naredna3Sata.some(p => p.vjetar > 35);
-            
-            let triSataTekst = "";
-            if (imaLiLedaU3Sata || (prosjekNaredna3 <= 0 && imaLiPadavinaU3Sata)) {
-                triSataTekst = `U iduća 3 sata stiže poledica uz ${prosjekNaredna3}°C, oprez na cesti.`;
-            } else if (jeLiMaglaU3Sata) {
-                triSataTekst = `U iduća 3 sata magla se ne miče s mjesta na ${prosjekNaredna3}°C.`;
-            } else if (jeLiVjetrovitoU3Sata) {
-                triSataTekst = `U iduća 3 sata vjetar će pojačati svoje udare na ${prosjekNaredna3}°C.`;
-            } else if (jeLiOblacnoU3Sata) {
-                triSataTekst = `U iduća 3 sata sivi oblaci ostaju glavni program na ${prosjekNaredna3}°C.`;
-            } else if (jeMrakSada) {
-                triSataTekst = imaLiPadavinaU3Sata ? `U iduća 3 sata ${imaLiSnijegaU3Sata ? 'snijeg prijeti da pokvari noć' : 'kiša prijeti da pokvari noć'} na ${prosjekNaredna3}°C.` : `U iduća 3 sata noć ostaje mirna sa ${prosjekNaredna3}°C.`;
-            } else {
-                if (imaLiPadavinaU3Sata) {
-                    triSataTekst = `U iduća 3 sata oblaci spremaju ${imaLiSnijegaU3Sata ? 'snježni tuš' : 'kišni tuš'} na ${prosjekNaredna3}°C.`;
-                } else if (prosjekNaredna3 >= 30) {
-                    triSataTekst = `U iduća 3 sata sunce prži punom snagom uz ${prosjekNaredna3}°C.`;
-                } else {
-                    triSataTekst = uzmiPametnuRecenicu("tri_sata_saljivo", prosjekNaredna3);
-                }
-            }
-
-            // FIX: prije su min3D/max3D imali fiksni fallback 20°C/30°C - ako iz bilo
-            // kojeg razloga (npr. na samom rubu 7-dnevnog prozora) nema dovoljno
-            // dnevnih podataka, aplikacija bi mogla tvrditi "20°C do 30°C" usred zime.
-            // Sada je fallback usidren na trenutnu poznatu temperaturu.
-            let min3D = tempSada - 5, max3D = tempSada + 5;
-            let imaLiKiseU3Dana = false;
-            let imaLiSnijegaU3Dana = false;
-            let imaLiKiseSutra = false;
-            let svaTriDanaOblacna = false;
-
-            if (globalDailyData && globalDailyData.time && globalDailyData.time.length) {
-                const odabraniDatumStr = trenutniPodatak.datum;
-                let danIdx = globalDailyData.time.indexOf(odabraniDatumStr);
-                if (danIdx === -1) danIdx = 0;
-
-                if (globalDailyData.time.length >= danIdx + 4) {
-                    const maxVrij = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => prosjekVrijednosti(globalDailyData, "temperature_2m_max", i));
-                    const minVrij = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => prosjekVrijednosti(globalDailyData, "temperature_2m_min", i));
-
-                    if (maxVrij.every(v => v !== null) && minVrij.every(v => v !== null)) {
-                        min3D = Math.round(Math.min(...minVrij));
-                        max3D = Math.round(Math.max(...maxVrij));
-
-                        const kodovi3D = [danIdx + 1, danIdx + 2, danIdx + 3].map(i => konsenzusKodVremena(globalDailyData, i));
-                        imaLiKiseU3Dana = kodovi3D.some(c => c >= 51);
-                        imaLiSnijegaU3Dana = kodovi3D.some(c => jeSnijeg(c));
-                        // FIX: prije se "kiša" tekst prikazivao ako BILO KOJI od naredna 3
-                        // dana ima kišu - čak i ako je to samo TREĆI dan, dok su sutra i
-                        // prekosutra potpuno vedri. Rezultat: rečenica "spremite kišobran
-                        // za naredna 3 dana" iako danas/sutra nema kiše ni na vidiku -
-                        // zbunjujuće i preuranjeno upozorenje. Sad se posebno provjerava
-                        // da li BAŠ SUTRA (kodovi3D[0]) ima kišu/snijeg, da bi se odlučilo
-                        // da li je poruka "kiša stiže" (hitno) ili "kiša tek kasnije".
-                        imaLiKiseSutra = kodovi3D[0] >= 51;
-                        svaTriDanaOblacna = kodovi3D.every(c => c === 3);
+                    if (aktivniBlok) {
+                        dogadjaji.push(aktivniBlok);
+                        aktivniBlok = null;
                     }
                 }
             }
+            if (aktivniBlok) dogadjaji.push(aktivniBlok);
 
-            // FIX: prije je postojalo samo dvije varijante (kiša / "stabilno") za naredna 3
-            // dana. Sad se prepoznaje i period ekstremne vrućine, hladnoće i potpuno oblačan
-            // period - svaka grana ima nekoliko varijanti teksta (bez ponavljanja iste dvaput
-            // zaredom), umjesto jedne uvijek iste rečenice.
-            let triDanaTekst;
-            if (imaLiKiseU3Dana && imaLiKiseSutra) {
-                triDanaTekst = uzmiPametnuRecenicuMinMax(imaLiSnijegaU3Dana ? "3dana_snijeg" : "3dana_kisa", min3D, max3D);
-            } else if (imaLiKiseU3Dana && !imaLiKiseSutra) {
-                triDanaTekst = uzmiPametnuRecenicuMinMax(imaLiSnijegaU3Dana ? "3dana_snijeg_kasnije" : "3dana_kisa_kasnije", min3D, max3D);
-            } else if (max3D >= 33) {
-                triDanaTekst = uzmiPametnuRecenicuMinMax("3dana_vruce", min3D, max3D);
-            } else if (max3D <= 8) {
-                triDanaTekst = uzmiPametnuRecenicuMinMax("3dana_hladno", min3D, max3D);
-            } else if (svaTriDanaOblacna) {
-                triDanaTekst = uzmiPametnuRecenicuMinMax("3dana_oblacno", min3D, max3D);
-            } else {
-                triDanaTekst = uzmiPametnuRecenicuMinMax("3dana_stabilno", min3D, max3D);
+            // Zadržavamo prvo pojavljivanje svakog tipa pojave (do 3 najvažnije nadolazeće pojave)
+            const prikazaniKljucevi = new Set();
+            const odabraniDogadjaji = [];
+            for (const d of dogadjaji) {
+                if (!prikazaniKljucevi.has(d.kljuc)) {
+                    prikazaniKljucevi.add(d.kljuc);
+                    odabraniDogadjaji.push(d);
+                }
+                if (odabraniDogadjaji.length >= 3) break;
             }
 
+            if (alertBoxEl && alertTextEl) {
+                alertTextEl.innerHTML = '';
+                if (odabraniDogadjaji.length > 0) {
+                    odabraniDogadjaji.forEach(d => {
+                        const satStr = `${String(d.satNum).padStart(2, '0')}:${String(d.minNum).padStart(2, '0')}h`;
+                        let danPrefiks = '';
+                        if (d.datum === danasStr) {
+                            danPrefiks = d.trajanjeSati >= 2 ? `Danas od ${satStr}` : `Danas ${satStr}`;
+                        } else if (d.datum === sutraStr) {
+                            danPrefiks = d.trajanjeSati >= 3 ? `Sutra od ${satStr}` : `Sutra ${satStr}`;
+                        } else {
+                            const [gN, mN, dN] = d.datum.split('-').map(Number);
+                            const dt = new Date(gN, mN - 1, dN);
+                            danPrefiks = `${NAZIVI_DANA_BS[dt.getDay()]} ${satStr}`;
+                        }
 
-            // FIX: prije je redoslijed (sada / naredna 3 sata / naredna 3 dana) bio
-            // NASUMIČAN (Math.random), pa je izvještaj ponekad počinjao sa "naredna 3
-            // dana", prije nego što bi uopšte rekao kakvo je vrijeme trenutno - zbunjujuće
-            // pri brzom čitanju. Sada je uvijek fiksni, hronološki redoslijed: sada -> 3h -> 3 dana.
-            let finalniTekst = `${dioDanaTekst} ${triSataTekst} ${triDanaTekst}`;
+                        const red = document.createElement('div');
+                        red.className = 'mini-warn-row';
 
-            if (sokPoruka) finalniTekst = `${sokPoruka} ${finalniTekst}`;
-            if (preporukaAktivnosti) finalniTekst += ` ${preporukaAktivnosti}`;
+                        const tacka = document.createElement('span');
+                        tacka.className = 'mini-warn-dot';
+                        tacka.style.backgroundColor = d.boja;
 
-            summaryEl.innerText = finalniTekst;
+                        const vrijemeSpan = document.createElement('span');
+                        vrijemeSpan.className = 'mini-warn-time';
+                        vrijemeSpan.innerText = `${danPrefiks} -`;
+
+                        const nazivSpan = document.createElement('span');
+                        nazivSpan.className = 'mini-warn-label';
+                        nazivSpan.innerText = d.naziv;
+
+                        red.appendChild(tacka);
+                        red.appendChild(vrijemeSpan);
+                        red.appendChild(nazivSpan);
+                        alertTextEl.appendChild(red);
+                    });
+                    alertBoxEl.style.display = 'block';
+                } else {
+                    const red = document.createElement('div');
+                    red.className = 'mini-warn-row';
+                    red.innerHTML = '<span class="mini-warn-dot" style="background-color:#22c55e"></span><span class="mini-warn-time">Narednih 48h -</span><span class="mini-warn-label">Mirno i bez padavina</span>';
+                    alertTextEl.appendChild(red);
+                    alertBoxEl.style.display = 'block';
+                }
+            }
+
+            /* ZAKOMENTARISAN ŠALJIVI METEO IZVJEŠTAJ:
+            const summaryEl = document.getElementById('combined-summary-text');
+            const dioDanaTekst = uzmiPametnuRecenicu("dan_mirno", trenutniPodatak.temp);
+            if (summaryEl) summaryEl.innerText = dioDanaTekst;
+            */
         }
 
         function dajIkonuZaGrafikon(code, jeMrak) {
