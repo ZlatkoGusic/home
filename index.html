@@ -349,6 +349,45 @@
             background: #1e293b;
             color: #e2e8f0;
         }
+        .weather-icon-display {
+            height: 82px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 6px 14px rgba(15, 23, 42, 0.12));
+        }
+        @keyframes wxSpinSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes wxFloatCloud {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-2.2px); }
+        }
+        @keyframes wxPulseFlash {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.72; transform: scale(0.96); }
+        }
+        @keyframes wxRainPulse {
+            0%, 100% { transform: translateY(0px); opacity: 0.95; }
+            50% { transform: translateY(2px); opacity: 0.75; }
+        }
+        .wx-hero-svg .wx-sun-spin {
+            transform-origin: center;
+            transform-box: fill-box;
+            animation: wxSpinSlow 22s linear infinite;
+        }
+        .wx-hero-svg .wx-cloud-float {
+            animation: wxFloatCloud 4s ease-in-out infinite;
+        }
+        .wx-hero-svg .wx-bolt-flash {
+            transform-origin: center;
+            transform-box: fill-box;
+            animation: wxPulseFlash 1.8s ease-in-out infinite;
+        }
+        .wx-hero-svg .wx-precip-anim {
+            animation: wxRainPulse 1.6s ease-in-out infinite;
+        }
 
         .sun-times {
             display: flex;
@@ -760,8 +799,9 @@
             </div>
             <div id="sun-path-status" class="sun-path-status">Računam poziciju sunca...</div>
             <button type="button" id="btn-meteoblue-img" class="btn-meteogram-export" onclick="otvoriMeteoblueSliku()">
-                🖼️ Izvuci sliku od 5 dana (Meteoblue)
+                🖼️ Izvuci sliku od 5 dana
             </button>
+
 
             <div class="sun-times">
                 <div class="sun-time-box">
@@ -855,10 +895,11 @@
 
     </div>
 
+
     <div id="meteogram-modal" class="meteogram-modal-backdrop" onclick="zatvoriModalKlikomVani(event)">
         <div class="meteogram-modal-card">
             <div class="meteogram-modal-header">
-                <div id="meteogram-modal-title" class="meteogram-modal-title">Meteogram 5 dana (Meteoblue stil)</div>
+                <div id="meteogram-modal-title" class="meteogram-modal-title">Prognoza za 5 dana</div>
                 <div class="meteogram-modal-actions">
                     <button type="button" id="btn-download-meteogram" class="btn-modal-download" onclick="preuzmiMeteoblueSliku()">⬇️ Preuzmi PNG sliku</button>
                     <button type="button" id="btn-close-meteogram" class="btn-modal-close" onclick="zatvoriMeteoblueSliku()">✕ Zatvori</button>
@@ -1135,6 +1176,7 @@
                     feelsLike: feels !== null ? Math.round(feels) : (temp !== null ? Math.round(temp) : 0),
                     vlaznost: (() => { const v = prosjekVrijednosti(hourlyData, "relative_humidity_2m", gi); return v !== null ? Math.round(v) : 0; })(),
                     pop: (() => { const v = prosjekVrijednosti(hourlyData, "precipitation_probability", gi); return v !== null ? Math.round(v) : 0; })(),
+                    mm: (() => { const v = prosjekVrijednosti(hourlyData, "precipitation", gi); return v !== null ? v : 0; })(),
                     uv: (() => { const v = prosjekVrijednosti(hourlyData, "uv_index", gi); return v !== null ? Math.round(v) : 0; })(),
                     vjetar: (() => { const v = prosjekVrijednosti(hourlyData, "wind_speed_10m", gi); return v !== null ? Math.round(v) : 0; })(),
                     smjerVjetra: (() => { const v = prosjekSmjeraVjetra(hourlyData, gi); return v !== null ? v : 0; })(),
@@ -1987,36 +2029,385 @@
             */
         }
 
+        let brojacSvgIkona = 0;
+
+        function odrediVarijantuIkone(code, jeMrak, mm = 0) {
+            // Fino razlikovanje svih WMO kodova + intenziteta padavina (slaba / srednja / jaka kiša, pljusak, snijeg, rosulja, nevrijeme)
+            if (code === 0) return jeMrak ? 'vedro_noc' : 'vedro_dan';
+            if (code === 1) return jeMrak ? 'malo_oblacno_noc' : 'malo_oblacno_dan';
+            if (code === 2) return jeMrak ? 'umjereno_oblacno_noc' : 'umjereno_oblacno_dan';
+            if (code === 3) return 'oblacno';
+            if (code === 45) return 'magla';
+            if (code === 48) return 'ledena_magla';
+
+            // Rosulja (51 = slaba, 53 = srednja, 55 = jaka)
+            if (code === 51) return 'rosulja_slaba';
+            if (code === 53) return 'rosulja_srednja';
+            if (code === 55) return 'rosulja_jaka';
+
+            // Ledena rosulja i ledena kiša (56, 66 = slaba; 57, 67 = jaka)
+            if (code === 56 || code === 66) return 'ledena_kisa_slaba';
+            if (code === 57 || code === 67) return 'ledena_kisa_jaka';
+
+            // Kiša (61 = slaba, 63 = srednja, 65 = jaka) uz korekciju prema stvarnim mm/h
+            if (code >= 61 && code <= 65) {
+                if (code === 65 || mm >= 3.5) return 'kisa_jaka';
+                if (code === 63 || mm >= 1.2) return 'kisa_srednja';
+                return 'kisa_slaba';
+            }
+
+            // Pljuskovi (80 = slab, 81 = srednji, 82 = jak/olujni)
+            if (code >= 80 && code <= 82) {
+                if (code === 82 || mm >= 4.0) return jeMrak ? 'pljusak_jak_noc' : 'pljusak_jak_dan';
+                if (code === 81 || mm >= 1.5) return jeMrak ? 'pljusak_srednji_noc' : 'pljusak_srednji_dan';
+                return jeMrak ? 'pljusak_slab_noc' : 'pljusak_slab_dan';
+            }
+
+            // Snijeg (71, 85 = slab; 73, 77 = srednji; 75, 86 = jak/mećava)
+            if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+                if (code === 75 || code === 86 || mm >= 2.5) return 'snijeg_jak';
+                if (code === 73 || code === 77 || mm >= 1.0) return 'snijeg_srednji';
+                return 'snijeg_slab';
+            }
+
+            // Grmljavina i olujno nevrijeme s gradom (95 vs 96/99)
+            if (code === 95) return mm >= 4.0 ? 'nevrijeme_jako' : 'grmljavina';
+            if (code >= 96) return 'nevrijeme_grad';
+
+            return jeMrak ? 'malo_oblacno_noc' : 'malo_oblacno_dan';
+        }
+
+        function dajNaprednuIkonuUnutrasnjost(code, jeMrak, mm = 0, uid = 'wx0') {
+            const v = odrediVarijantuIkone(code, jeMrak, mm);
+
+            const defs = `
+                <defs>
+                    <radialGradient id="sunCore_${uid}" cx="35%" cy="30%" r="65%">
+                        <stop offset="0%" stop-color="#fef08a"/>
+                        <stop offset="55%" stop-color="#facc15"/>
+                        <stop offset="100%" stop-color="#ea580c"/>
+                    </radialGradient>
+                    <radialGradient id="moonCore_${uid}" cx="35%" cy="30%" r="70%">
+                        <stop offset="0%" stop-color="#fef9c3"/>
+                        <stop offset="60%" stop-color="#fde047"/>
+                        <stop offset="100%" stop-color="#ca8a04"/>
+                    </radialGradient>
+                    <linearGradient id="cloudLight_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#ffffff"/>
+                        <stop offset="60%" stop-color="#e2e8f0"/>
+                        <stop offset="100%" stop-color="#94a3b8"/>
+                    </linearGradient>
+                    <linearGradient id="cloudMid_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#f1f5f9"/>
+                        <stop offset="55%" stop-color="#94a3b8"/>
+                        <stop offset="100%" stop-color="#475569"/>
+                    </linearGradient>
+                    <linearGradient id="cloudDark_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#64748b"/>
+                        <stop offset="55%" stop-color="#334155"/>
+                        <stop offset="100%" stop-color="#0f172a"/>
+                    </linearGradient>
+                    <linearGradient id="dropLight_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#7dd3fc"/>
+                        <stop offset="100%" stop-color="#2563eb"/>
+                    </linearGradient>
+                    <linearGradient id="dropHeavy_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#38bdf8"/>
+                        <stop offset="100%" stop-color="#1d4ed8"/>
+                    </linearGradient>
+                    <linearGradient id="boltGrad_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#fef08a"/>
+                        <stop offset="55%" stop-color="#facc15"/>
+                        <stop offset="100%" stop-color="#ea580c"/>
+                    </linearGradient>
+                </defs>
+            `;
+
+            // Pomoćni gradivni blokovi u 64x64 koordinatnom sistemu
+            const crtajSunce = (cx, cy, r) => {
+                let zrake = '';
+                for (let a = 0; a < 360; a += 45) {
+                    const rad = a * Math.PI / 180;
+                    const x1 = cx + Math.cos(rad) * (r + 3.2);
+                    const y1 = cy + Math.sin(rad) * (r + 3.2);
+                    const x2 = cx + Math.cos(rad) * (r + 7.2);
+                    const y2 = cy + Math.sin(rad) * (r + 7.2);
+                    zrake += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#f59e0b" stroke-width="2.8" stroke-linecap="round"/>`;
+                }
+                return `
+                    <g class="wx-sun-spin">
+                        ${zrake}
+                        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#sunCore_${uid})"/>
+                    </g>
+                `;
+            };
+
+            const crtajMjesec = (tx, ty, scale = 1) => `
+                <g transform="translate(${tx}, ${ty}) scale(${scale})">
+                    <path d="M 28,12 A 14,14 0 1,0 42,28 A 11,11 0 1,1 28,12 Z" fill="url(#moonCore_${uid})"/>
+                    <circle cx="16" cy="14" r="1.4" fill="#fef08a"/>
+                    <circle cx="44" cy="13" r="1.7" fill="#fef08a"/>
+                </g>
+            `;
+
+            const crtajOblak = (gradId, tx = 0, ty = 0, scale = 1, op = 1) => `
+                <g class="wx-cloud-float" transform="translate(${tx}, ${ty}) scale(${scale})" opacity="${op}">
+                    <path d="M 17,42 H 47 A 9,9 0 0,0 49,24.3 A 12.5,12.5 0 0,0 25.2,20.5 A 9.5,9.5 0 0,0 11,29.5 A 7.5,7.5 0 0,0 17,42 Z" fill="url(#${gradId}_${uid})"/>
+                </g>
+            `;
+
+            const crtajKap = (x, y, duzina = 8, debljina = 2.6, grad = 'dropLight') => `
+                <line x1="${x}" y1="${y}" x2="${(x - duzina * 0.35).toFixed(1)}" y2="${(y + duzina).toFixed(1)}" stroke="url(#${grad}_${uid})" stroke-width="${debljina}" stroke-linecap="round"/>
+            `;
+
+            const crtajPahulju = (cx, cy, r = 3.6) => `
+                <g stroke="#38bdf8" stroke-width="1.6" stroke-linecap="round">
+                    <line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}"/>
+                    <line x1="${(cx - r * 0.5).toFixed(1)}" y1="${(cy - r * 0.86).toFixed(1)}" x2="${(cx + r * 0.5).toFixed(1)}" y2="${(cy + r * 0.86).toFixed(1)}"/>
+                    <line x1="${(cx + r * 0.5).toFixed(1)}" y1="${(cy - r * 0.86).toFixed(1)}" x2="${(cx - r * 0.5).toFixed(1)}" y2="${(cy + r * 0.86).toFixed(1)}"/>
+                </g>
+            `;
+
+            const crtajMunju = (tx, ty, scale = 1) => `
+                <g class="wx-bolt-flash" transform="translate(${tx}, ${ty}) scale(${scale})">
+                    <polygon points="31,34 22,47 29,47 26,59 40,43 32,43 36,34" fill="url(#boltGrad_${uid})"/>
+                </g>
+            `;
+
+            let tijelo = '';
+            switch (v) {
+                case 'vedro_dan':
+                    tijelo = crtajSunce(32, 32, 13.5);
+                    break;
+                case 'vedro_noc':
+                    tijelo = crtajMjesec(2, 4, 1.15);
+                    break;
+                case 'malo_oblacno_dan':
+                    tijelo = crtajSunce(23, 23, 10.5) + crtajOblak('cloudLight', 4, 6, 0.95);
+                    break;
+                case 'malo_oblacno_noc':
+                    tijelo = crtajMjesec(-5, -2, 0.95) + crtajOblak('cloudLight', 4, 6, 0.95);
+                    break;
+                case 'umjereno_oblacno_dan':
+                    tijelo = crtajSunce(21, 21, 9.5) + crtajOblak('cloudMid', 8, 1, 0.82, 0.85) + crtajOblak('cloudLight', 1, 6, 0.98);
+                    break;
+                case 'umjereno_oblacno_noc':
+                    tijelo = crtajMjesec(-7, -4, 0.88) + crtajOblak('cloudMid', 8, 1, 0.82, 0.85) + crtajOblak('cloudLight', 1, 6, 0.98);
+                    break;
+                case 'oblacno':
+                    tijelo = crtajOblak('cloudMid', 8, -2, 0.88, 0.9) + crtajOblak('cloudLight', -2, 5, 1.0);
+                    break;
+                case 'magla':
+                    tijelo = crtajOblak('cloudMid', 0, -3, 0.95, 0.75) + `
+                        <g stroke="#94a3b8" stroke-width="2.8" stroke-linecap="round">
+                            <line x1="14" y1="45" x2="50" y2="45"/>
+                            <line x1="18" y1="51" x2="46" y2="51"/>
+                            <line x1="22" y1="57" x2="42" y2="57"/>
+                        </g>`;
+                    break;
+                case 'ledena_magla':
+                    tijelo = crtajOblak('cloudMid', 0, -3, 0.95, 0.78) + `
+                        <g stroke="#06b6d4" stroke-width="2.6" stroke-linecap="round">
+                            <line x1="14" y1="45" x2="50" y2="45"/>
+                            <line x1="18" y1="52" x2="46" y2="52"/>
+                        </g>` + crtajPahulju(32, 58, 3.2);
+                    break;
+                case 'rosulja_slaba':
+                    tijelo = crtajOblak('cloudLight', 0, -2, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(26, 45, 5, 2.0)}
+                            ${crtajKap(38, 46, 5, 2.0)}
+                        </g>`;
+                    break;
+                case 'rosulja_srednja':
+                    tijelo = crtajOblak('cloudMid', 0, -2, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(22, 45, 5.5, 2.1)}
+                            ${crtajKap(32, 47, 5.5, 2.1)}
+                            ${crtajKap(42, 45, 5.5, 2.1)}
+                        </g>`;
+                    break;
+                case 'rosulja_jaka':
+                    tijelo = crtajOblak('cloudMid', 6, -5, 0.84, 0.85) + crtajOblak('cloudMid', -2, 0, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(20, 45, 6, 2.2)}
+                            ${crtajKap(28, 48, 6, 2.2)}
+                            ${crtajKap(36, 45, 6, 2.2)}
+                            ${crtajKap(44, 48, 6, 2.2)}
+                        </g>`;
+                    break;
+                case 'kisa_slaba':
+                    tijelo = crtajOblak('cloudLight', 0, -2, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(26, 44, 8.5, 2.6, 'dropLight')}
+                            ${crtajKap(38, 45, 8.5, 2.6, 'dropLight')}
+                        </g>`;
+                    break;
+                case 'kisa_srednja':
+                    tijelo = crtajOblak('cloudMid', 6, -5, 0.84, 0.8) + crtajOblak('cloudMid', -2, 0, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(21, 44, 10, 2.8, 'dropHeavy')}
+                            ${crtajKap(32, 46, 10.5, 2.8, 'dropHeavy')}
+                            ${crtajKap(43, 44, 10, 2.8, 'dropHeavy')}
+                        </g>`;
+                    break;
+                case 'kisa_jaka':
+                    tijelo = crtajOblak('cloudDark', 7, -5, 0.86, 0.9) + crtajOblak('cloudDark', -2, 0, 1.0) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(18, 43, 13, 3.0, 'dropHeavy')}
+                            ${crtajKap(25, 45, 13.5, 3.0, 'dropHeavy')}
+                            ${crtajKap(32, 43, 13.5, 3.0, 'dropHeavy')}
+                            ${crtajKap(39, 45, 13.5, 3.0, 'dropHeavy')}
+                            ${crtajKap(46, 43, 13, 3.0, 'dropHeavy')}
+                        </g>`;
+                    break;
+                case 'pljusak_slab_dan':
+                    tijelo = crtajSunce(20, 19, 9) + crtajOblak('cloudLight', 2, 1, 0.95) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(27, 45, 8.5, 2.6, 'dropLight')}
+                            ${crtajKap(39, 46, 8.5, 2.6, 'dropLight')}
+                        </g>`;
+                    break;
+                case 'pljusak_slab_noc':
+                    tijelo = crtajMjesec(-7, -5, 0.85) + crtajOblak('cloudLight', 2, 1, 0.95) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(27, 45, 8.5, 2.6, 'dropLight')}
+                            ${crtajKap(39, 46, 8.5, 2.6, 'dropLight')}
+                        </g>`;
+                    break;
+                case 'pljusak_srednji_dan':
+                    tijelo = crtajSunce(20, 19, 9) + crtajOblak('cloudMid', 2, 1, 0.96) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(22, 44, 10, 2.8, 'dropHeavy')}
+                            ${crtajKap(33, 46, 10.5, 2.8, 'dropHeavy')}
+                            ${crtajKap(44, 44, 10, 2.8, 'dropHeavy')}
+                        </g>`;
+                    break;
+                case 'pljusak_srednji_noc':
+                    tijelo = crtajMjesec(-7, -5, 0.85) + crtajOblak('cloudMid', 2, 1, 0.96) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(22, 44, 10, 2.8, 'dropHeavy')}
+                            ${crtajKap(33, 46, 10.5, 2.8, 'dropHeavy')}
+                            ${crtajKap(44, 44, 10, 2.8, 'dropHeavy')}
+                        </g>`;
+                    break;
+                case 'pljusak_jak_dan':
+                    tijelo = crtajSunce(19, 18, 8.5) + crtajOblak('cloudDark', 2, 1, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(19, 44, 12.5, 3.0, 'dropHeavy')}
+                            ${crtajKap(27, 46, 13, 3.0, 'dropHeavy')}
+                            ${crtajKap(35, 44, 13, 3.0, 'dropHeavy')}
+                            ${crtajKap(43, 46, 12.5, 3.0, 'dropHeavy')}
+                        </g>`;
+                    break;
+                case 'pljusak_jak_noc':
+                    tijelo = crtajMjesec(-7, -5, 0.85) + crtajOblak('cloudDark', 2, 1, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(19, 44, 12.5, 3.0, 'dropHeavy')}
+                            ${crtajKap(27, 46, 13, 3.0, 'dropHeavy')}
+                            ${crtajKap(35, 44, 13, 3.0, 'dropHeavy')}
+                            ${crtajKap(43, 46, 12.5, 3.0, 'dropHeavy')}
+                        </g>`;
+                    break;
+                case 'ledena_kisa_slaba':
+                    tijelo = crtajOblak('cloudMid', 0, -2, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(23, 44, 9, 2.6, 'dropLight')}
+                            ${crtajPahulju(33, 50, 3.4)}
+                            ${crtajKap(43, 44, 9, 2.6, 'dropLight')}
+                        </g>`;
+                    break;
+                case 'ledena_kisa_jaka':
+                    tijelo = crtajOblak('cloudDark', 0, -2, 1.0) + `
+                        <g class="wx-precip-anim">
+                            ${crtajKap(19, 44, 11, 2.8, 'dropHeavy')}
+                            ${crtajPahulju(27, 51, 3.6)}
+                            ${crtajKap(35, 44, 11, 2.8, 'dropHeavy')}
+                            ${crtajPahulju(43, 51, 3.6)}
+                        </g>`;
+                    break;
+                case 'snijeg_slab':
+                    tijelo = crtajOblak('cloudLight', 0, -2, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajPahulju(25, 49, 3.5)}
+                            ${crtajPahulju(39, 50, 3.5)}
+                        </g>`;
+                    break;
+                case 'snijeg_srednji':
+                    tijelo = crtajOblak('cloudMid', 0, -2, 0.98) + `
+                        <g class="wx-precip-anim">
+                            ${crtajPahulju(21, 48, 3.6)}
+                            ${crtajPahulju(32, 53, 3.8)}
+                            ${crtajPahulju(43, 48, 3.6)}
+                        </g>`;
+                    break;
+                case 'snijeg_jak':
+                    tijelo = crtajOblak('cloudDark', 6, -5, 0.85, 0.88) + crtajOblak('cloudMid', -2, 0, 1.0) + `
+                        <g class="wx-precip-anim">
+                            ${crtajPahulju(18, 47, 3.5)}
+                            ${crtajPahulju(27, 54, 3.8)}
+                            ${crtajPahulju(35, 47, 3.6)}
+                            ${crtajPahulju(44, 54, 3.8)}
+                        </g>`;
+                    break;
+                case 'grmljavina':
+                    tijelo = crtajOblak('cloudDark', 6, -5, 0.85, 0.88) + crtajOblak('cloudDark', -2, 0, 0.98) +
+                        crtajKap(20, 44, 9.5, 2.6, 'dropHeavy') +
+                        crtajKap(44, 44, 9.5, 2.6, 'dropHeavy') +
+                        crtajMunju(0, 0, 1);
+                    break;
+                case 'nevrijeme_jako':
+                    tijelo = crtajOblak('cloudDark', 7, -5, 0.86, 0.92) + crtajOblak('cloudDark', -2, 0, 1.0) +
+                        crtajKap(18, 43, 12.5, 2.9, 'dropHeavy') +
+                        crtajKap(25, 45, 12.5, 2.9, 'dropHeavy') +
+                        crtajKap(42, 44, 12.5, 2.9, 'dropHeavy') +
+                        crtajKap(48, 43, 12.5, 2.9, 'dropHeavy') +
+                        crtajMunju(0, 0, 1.04);
+                    break;
+                case 'nevrijeme_grad':
+                    tijelo = crtajOblak('cloudDark', 7, -5, 0.86, 0.95) + crtajOblak('cloudDark', -2, 0, 1.0) +
+                        crtajKap(18, 43, 11, 2.8, 'dropHeavy') +
+                        crtajKap(45, 43, 11, 2.8, 'dropHeavy') +
+                        crtajMunju(-4, 0, 1.0) +
+                        `<circle cx="23" cy="56" r="2.5" fill="#e0f2fe" stroke="#38bdf8" stroke-width="1"/>
+                         <circle cx="38" cy="55" r="2.7" fill="#e0f2fe" stroke="#38bdf8" stroke-width="1"/>
+                         <circle cx="44" cy="58" r="2.3" fill="#e0f2fe" stroke="#38bdf8" stroke-width="1"/>`;
+                    break;
+            }
+
+            return defs + tijelo;
+        }
+
+        function dajNaprednuIkonuSvg(code, jeMrak = false, mm = 0, velicina = 76) {
+            brojacSvgIkona++;
+            const uid = `hero_${brojacSvgIkona}`;
+            const unutrasnjost = dajNaprednuIkonuUnutrasnjost(code, jeMrak, mm, uid);
+            return `<svg class="wx-hero-svg" width="${velicina}" height="${velicina}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">${unutrasnjost}</svg>`;
+        }
+
         function dajIkonuZaGrafikon(code, jeMrak) {
-            // Grafikon sad moze prikazivati i nocne sate (05h/23h mogu biti prije
-            // izlaska/poslije zalaska sunca) - nocu prikazujemo mjesec umjesto sunca,
-            // ali SAMO za vedro/pretezno vedro nebo (ostale ikone - oblak/kisa/snijeg/
-            // magla - vec su tacne bez obzira na doba dana).
             if (jeMrak && (code === 0 || code === 1 || code === 2)) return "🌙";
             return dajIkonuVremena(code);
         }
 
         function proceniOblacnostIzKoda(code) {
-            // Rezervni plan ako cloud_cover nedostaje za neki sat/model - grubo
-            // izvodi % naoblake iz weather_code (koji uvijek postoji), umjesto da
-            // se tiho pretpostavi 0% (sunčano) i grafikon lažno izgleda ravan.
             if (code === 0) return 5;
             if (code === 1) return 25;
             if (code === 2) return 55;
             if (code === 3) return 95;
             if (code === 45 || code === 48) return 90;
-            if (code >= 51) return 90; // bilo kakva padavina - pretpostavi pretezno oblacno
+            if (code >= 51) return 90;
             return 50;
         }
 
         const TEMP_BOJA_TACKE = [
-            { temp: -15, boja: [30, 58, 138] },   // tamnoplava - ekstremna hladnoća
-            { temp: 0, boja: [59, 130, 246] },    // plava
-            { temp: 10, boja: [34, 197, 94] },    // zelena
-            { temp: 20, boja: [234, 179, 8] },    // žuta
-            { temp: 28, boja: [249, 115, 22] },   // narandžasta
-            { temp: 35, boja: [239, 68, 68] },    // crvena
-            { temp: 42, boja: [127, 29, 29] }     // tamnocrvena - ekstremna vrućina
+            { temp: -15, boja: [30, 58, 138] },
+            { temp: 0, boja: [59, 130, 246] },
+            { temp: 10, boja: [34, 197, 94] },
+            { temp: 20, boja: [234, 179, 8] },
+            { temp: 28, boja: [249, 115, 22] },
+            { temp: 35, boja: [239, 68, 68] },
+            { temp: 42, boja: [127, 29, 29] }
         ];
 
         function bojaZaTemperaturu(temp) {
@@ -2033,8 +2424,6 @@
         }
 
         const NAZIVI_DANA_BS = ["Nedjelja", "Ponedjeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota"];
-        const NAZIVI_DANA_KRATKO_BS = ["Ned", "Pon", "Uto", "Sri", "Čet", "Pet", "Sub"];
-        let zadnjiMeteoblueDataUrl = "";
 
         function glatkaSvgPutanja(tacke) {
             if (!tacke || tacke.length === 0) return "";
@@ -2062,12 +2451,11 @@
             const ns = 'http://www.w3.org/2000/svg';
             const hourly = zadnjaSirovaData.hourly;
 
-            // Windy-stil raspored zona po visini (ukupna visina 236px)
             const Y_HEADER_DNO = 22;
-            const Y_TEMP_VRH = 62;
-            const Y_TEMP_BAZA = 120;
-            const Y_VJETAR_DNO = 150;
-            const Y_OBLACI_VRH = 152;
+            const Y_TEMP_VRH = 66;
+            const Y_TEMP_BAZA = 122;
+            const Y_VJETAR_DNO = 152;
+            const Y_OBLACI_VRH = 154;
             const baznaY = 232;
 
             const jeTamniMod = document.body.classList.contains('dark-mode');
@@ -2096,7 +2484,6 @@
             const offsetSekunde = zadnjaSirovaData.offsetSekunde || 0;
             const stvarnoSada = new Date(Date.now() + offsetSekunde * 1000);
 
-            // Globalni raspon temperature i pritiska kroz svih 5 dana (da kriva prelazi glatko iz dana u dan)
             const pocetakSvih = parsirajApiVrijeme(`${datumPocetni}T00:00`);
             const krajSvih = parsirajApiVrijeme(`${pomjeriDatumString(datumPocetni, BROJ_DANA - 1)}T23:59`);
             const ukupnoSvihMs = krajSvih - pocetakSvih;
@@ -2153,7 +2540,7 @@
                 return (baznaY - 18) - norm * ((baznaY - 18) - (Y_OBLACI_VRH + 14));
             };
 
-            // 1. Pozadinske noćne kolone i zaglavlja dana (Subota 7 ●, Nedjelja 8 ●...)
+            // 1. Pozadinske noćne kolone
             for (let dan = 0; dan < BROJ_DANA; dan++) {
                 const datumD = pomjeriDatumString(datumPocetni, dan);
                 const sunInfoD = globalSunMapa[datumD];
@@ -2189,7 +2576,7 @@
                 }
             }
 
-            // Traka za vjetar (bijela/tamna podloga između temperature i oblaka, kao na Windyju)
+            // Traka za vjetar
             const vjetarTraka = document.createElementNS(ns, 'rect');
             vjetarTraka.setAttribute('x', '0');
             vjetarTraka.setAttribute('y', Y_TEMP_BAZA.toFixed(1));
@@ -2199,7 +2586,7 @@
             vjetarTraka.setAttribute('opacity', '0.92');
             grupa.appendChild(vjetarTraka);
 
-            // 2. Temperaturna ispuna (Windy stil: mekana obojena površina ispod glatke krive)
+            // 2. Temperaturna ispuna i glatka linija
             sviUzorci.forEach(u => { u.yTemp = yZaTemp(u.temp); });
             for (let i = 0; i < sviUzorci.length - 1; i++) {
                 const a = sviUzorci[i], b = sviUzorci[i + 1];
@@ -2211,7 +2598,6 @@
                 grupa.appendChild(poly);
             }
 
-            // Glatka linija na vrhu temperaturne krive
             const tempPutanja = document.createElementNS(ns, 'path');
             tempPutanja.setAttribute('d', glatkaSvgPutanja(sviUzorci.map(u => ({ x: u.x, y: u.yTemp }))));
             tempPutanja.setAttribute('fill', 'none');
@@ -2220,7 +2606,7 @@
             tempPutanja.setAttribute('opacity', '0.85');
             grupa.appendChild(tempPutanja);
 
-            // 3. Zona oblaka, pritiska i kiše (donji panel kao na Windyju: Oblaci, kiša mm / Tlak)
+            // 3. Zona oblaka, pritiska i kiše
             [168, 184, 200, 216].forEach((gy, idx) => {
                 const gl = document.createElementNS(ns, 'line');
                 gl.setAttribute('x1', '0');
@@ -2245,14 +2631,13 @@
                 grupa.appendChild(vl);
             });
 
-            // Višeslojni sivi oblaci (3 sloja mekih oblaka po gustini naoblake, kao na Windyju)
-            const yOblakSredina = 182;
+            const yOblakSredina = 183;
             const slojOblaka = (prag, faktorDebljine, boja, prozirnost) => {
                 const gornje = [];
                 const donje = [];
                 sviUzorci.forEach(u => {
                     const aktivan = Math.max(0, u.oblacnost - prag) / (100 - prag);
-                    const poluVisina = aktivan * 24 * faktorDebljine;
+                    const poluVisina = aktivan * 23 * faktorDebljine;
                     gornje.push({ x: u.x, y: yOblakSredina - poluVisina });
                     donje.unshift({ x: u.x, y: yOblakSredina + poluVisina * 0.85 });
                 });
@@ -2267,7 +2652,6 @@
             slojOblaka(38, 0.72, jeTamniMod ? '#475569' : '#64748b', '0.35');
             slojOblaka(65, 0.45, jeTamniMod ? '#334155' : '#475569', '0.50');
 
-            // Glatka linija pritiska (Tlak hPa) kroz zonu oblaka
             const pritisakTacke = sviUzorci.map(u => ({ x: u.x, y: yZaPritisak(u.pritisak), p: u.pritisak }));
             const pritisakPutanja = document.createElementNS(ns, 'path');
             pritisakPutanja.setAttribute('d', glatkaSvgPutanja(pritisakTacke));
@@ -2277,7 +2661,6 @@
             pritisakPutanja.setAttribute('opacity', '0.85');
             grupa.appendChild(pritisakPutanja);
 
-            // Vertikalni plavi stubići padavina na dnu (mm) + plave oznake (npr. 0.5mm, 1.2mm)
             sviUzorci.forEach((u, idx) => {
                 const imaPadavine = u.mm >= 0.1 || (u.pop >= 55 && u.oblacnost >= 35);
                 if (imaPadavine) {
@@ -2294,7 +2677,6 @@
                     rect.setAttribute('opacity', '0.92');
                     grupa.appendChild(rect);
 
-                    // Prikaz mm oznake na lokalnom vrhu padavina (svakih par sati da se ne preklapaju)
                     const prethMm = idx > 0 ? sviUzorci[idx - 1].mm : 0;
                     const sljedMm = idx < sviUzorci.length - 1 ? sviUzorci[idx + 1].mm : 0;
                     if (u.mm >= 0.2 && u.mm >= prethMm && u.mm >= sljedMm && idx % 2 === 0) {
@@ -2311,7 +2693,6 @@
                 }
             });
 
-            // Horizontalne linije razdvajanja redova (Header, Vjetar gornja i donja)
             [Y_HEADER_DNO, Y_TEMP_BAZA, Y_VJETAR_DNO].forEach(yLin => {
                 const hl = document.createElementNS(ns, 'line');
                 hl.setAttribute('x1', '0');
@@ -2323,7 +2704,7 @@
                 grupa.appendChild(hl);
             });
 
-            // 4. Po danima: vertikalni razdjelnici, naziv dana (Subota 7 ●), 3-satne kolone (1, 4, 7, 10, 13, 16, 19, 22)
+            // 4. Po danima: vertikalni razdjelnici, naziv dana i napredne SVG ikone u 3-satnim kolonama
             const SATI_KOLONE = [1, 4, 7, 10, 13, 16, 19, 22];
             for (let dan = 0; dan < BROJ_DANA; dan++) {
                 const datumD = pomjeriDatumString(datumPocetni, dan);
@@ -2341,7 +2722,6 @@
                     grupa.appendChild(razdjelnik);
                 }
 
-                // Naziv dana i datum (npr. "Subota 7") + statusna tačkica ●
                 const [gNum, mNum, dNum] = datumD.split('-').map(Number);
                 const dtObj = new Date(gNum, mNum - 1, dNum);
                 const imeDana = NAZIVI_DANA_BS[dtObj.getDay()];
@@ -2357,7 +2737,6 @@
                 danLabel.textContent = tekstDana;
                 grupa.appendChild(danLabel);
 
-                // Boja tačkice pored imena dana (zelena = mirno/suho, žuta = umjereno/oblačno, plava = kiša/snijeg)
                 const uzorciDana = sviUzorci.filter(u => u.iso.startsWith(datumD));
                 const maxPopDana = uzorciDana.length ? Math.max(...uzorciDana.map(u => u.pop)) : 0;
                 const bojaTacke = maxPopDana >= 60 ? '#2563eb' : (maxPopDana >= 30 ? '#eab308' : '#16a34a');
@@ -2368,7 +2747,6 @@
                 dot.setAttribute('fill', bojaTacke);
                 grupa.appendChild(dot);
 
-                // Oznaka pritiska (npr. 1027hPa) jednom dnevno oko podneva
                 const podneUzorak = uzorciDana.find(u => u.t.getUTCHours() === 13) || uzorciDana[Math.floor(uzorciDana.length / 2)];
                 if (podneUzorak) {
                     const yP = yZaPritisak(podneUzorak.pritisak);
@@ -2383,16 +2761,14 @@
                     grupa.appendChild(pTxt);
                 }
 
-                // 3-satne kolone (1, 4, 7, 10, 13, 16, 19, 22)
                 SATI_KOLONE.forEach(sat => {
                     const isoTrazeni = `${datumD}T${String(sat).padStart(2, '0')}:00`;
                     const u = sviUzorci.find(item => item.iso === isoTrazeni);
                     if (!u) return;
 
-                    // Sat (npr. 1, 4, 7, 10...)
                     const satTxt = document.createElementNS(ns, 'text');
                     satTxt.setAttribute('x', u.x.toFixed(1));
-                    satTxt.setAttribute('y', '35');
+                    satTxt.setAttribute('y', '34');
                     satTxt.setAttribute('text-anchor', 'middle');
                     satTxt.setAttribute('font-size', '9.5');
                     satTxt.setAttribute('font-weight', '700');
@@ -2400,20 +2776,19 @@
                     satTxt.textContent = `${sat}`;
                     grupa.appendChild(satTxt);
 
-                    // Ikona vremena ispod sata
+                    // Super napredna vektorska SVG ikona u grafikonu (razlikuje slabu, srednju, jaku kišu, pljuskove, snijeg, grmljavinu...)
                     const jeMrakSat = sunInfoD ? (u.t < sunInfoD.sunrise || u.t > sunInfoD.sunset) : (sat < 6 || sat >= 20);
-                    const ikonaTxt = document.createElementNS(ns, 'text');
-                    ikonaTxt.setAttribute('x', u.x.toFixed(1));
-                    ikonaTxt.setAttribute('y', '53');
-                    ikonaTxt.setAttribute('text-anchor', 'middle');
-                    ikonaTxt.setAttribute('font-size', '14.5');
-                    ikonaTxt.textContent = dajIkonuZaGrafikon(u.code, jeMrakSat);
-                    grupa.appendChild(ikonaTxt);
+                    brojacSvgIkona++;
+                    const ikonaGrupa = document.createElementNS(ns, 'g');
+                    const velIkone = 26;
+                    const sk = velIkone / 64;
+                    ikonaGrupa.setAttribute('transform', `translate(${(u.x - velIkone / 2).toFixed(1)}, 36) scale(${sk.toFixed(4)})`);
+                    ikonaGrupa.innerHTML = dajNaprednuIkonuUnutrasnjost(u.code, jeMrakSat, u.mm, `g_${dan}_${sat}_${brojacSvgIkona}`);
+                    grupa.appendChild(ikonaGrupa);
 
-                    // Glavna temperatura (°C) u zoni krive
                     const tempTxt = document.createElementNS(ns, 'text');
                     tempTxt.setAttribute('x', u.x.toFixed(1));
-                    tempTxt.setAttribute('y', '104');
+                    tempTxt.setAttribute('y', '106');
                     tempTxt.setAttribute('text-anchor', 'middle');
                     tempTxt.setAttribute('font-size', '11');
                     tempTxt.setAttribute('font-weight', '800');
@@ -2421,10 +2796,9 @@
                     tempTxt.textContent = `${Math.round(u.temp)}°`;
                     grupa.appendChild(tempTxt);
 
-                    // Subjektivni osjećaj / rosište ispod glavne temperature (manjim fontom, kao na Windyju)
                     const feelsTxt = document.createElementNS(ns, 'text');
                     feelsTxt.setAttribute('x', u.x.toFixed(1));
-                    feelsTxt.setAttribute('y', '116');
+                    feelsTxt.setAttribute('y', '118');
                     feelsTxt.setAttribute('text-anchor', 'middle');
                     feelsTxt.setAttribute('font-size', '8.2');
                     feelsTxt.setAttribute('font-weight', '600');
@@ -2432,7 +2806,6 @@
                     feelsTxt.textContent = `${Math.round(u.feels)}°`;
                     grupa.appendChild(feelsTxt);
 
-                    // Vjetar u traci (strelica smjera + brzina + procijenjeni udari/smjer ispod)
                     if (u.vjetar >= 12) {
                         const vjetarBg = document.createElementNS(ns, 'rect');
                         vjetarBg.setAttribute('x', (u.x - 16).toFixed(1));
@@ -2446,7 +2819,7 @@
 
                     const rot = (u.smjer + 180) % 360;
                     const strelicaG = document.createElementNS(ns, 'g');
-                    strelicaG.setAttribute('transform', `translate(${(u.x - 8).toFixed(1)}, 131) rotate(${rot.toFixed(0)})`);
+                    strelicaG.setAttribute('transform', `translate(${(u.x - 8).toFixed(1)}, 133) rotate(${rot.toFixed(0)})`);
                     const strelicaPath = document.createElementNS(ns, 'path');
                     strelicaPath.setAttribute('d', 'M 0,-4.5 L 3.2,3.8 L 0,1.8 L -3.2,3.8 Z');
                     strelicaPath.setAttribute('fill', 'none');
@@ -2457,7 +2830,7 @@
 
                     const vjBrzina = document.createElementNS(ns, 'text');
                     vjBrzina.setAttribute('x', (u.x + 4).toFixed(1));
-                    vjBrzina.setAttribute('y', '134');
+                    vjBrzina.setAttribute('y', '136');
                     vjBrzina.setAttribute('text-anchor', 'middle');
                     vjBrzina.setAttribute('font-size', '9.5');
                     vjBrzina.setAttribute('font-weight', '800');
@@ -2467,7 +2840,7 @@
 
                     const vjUdari = document.createElementNS(ns, 'text');
                     vjUdari.setAttribute('x', u.x.toFixed(1));
-                    vjUdari.setAttribute('y', '146');
+                    vjUdari.setAttribute('y', '148');
                     vjUdari.setAttribute('text-anchor', 'middle');
                     vjUdari.setAttribute('font-size', '8');
                     vjUdari.setAttribute('font-weight', '600');
@@ -2477,7 +2850,6 @@
                 });
             }
 
-            // Crvena isprekidana linija "sada" kroz cijelu visinu grafikona (kao na Windyju)
             if (stvarnoSada >= pocetakSvih && stvarnoSada <= krajSvih) {
                 const xSada = ((stvarnoSada - pocetakSvih) / ukupnoSvihMs) * ukupnaSirina;
                 const sadaLinija = document.createElementNS(ns, 'line');
@@ -2491,6 +2863,162 @@
                 sadaLinija.setAttribute('opacity', '0.85');
                 grupa.appendChild(sadaLinija);
             }
+        }
+
+        let zadnjiMeteoblueDataUrl = "";
+
+        function nacrtajCanvasVremenskuIkonu(ctx, cx, cy, code, jeMrak, mm = 0) {
+            const v = odrediVarijantuIkone(code, jeMrak, mm);
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            const sunce = (x, y, r) => {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 1.8;
+                for (let a = 0; a < 360; a += 45) {
+                    const rad = a * Math.PI / 180;
+                    ctx.beginPath();
+                    ctx.moveTo(x + Math.cos(rad) * (r + 1.8), y + Math.sin(rad) * (r + 1.8));
+                    ctx.lineTo(x + Math.cos(rad) * (r + 4.2), y + Math.sin(rad) * (r + 4.2));
+                    ctx.stroke();
+                }
+                const g = ctx.createRadialGradient(x - r * 0.25, y - r * 0.25, 1, x, y, r);
+                g.addColorStop(0, '#fef08a');
+                g.addColorStop(0.6, '#facc15');
+                g.addColorStop(1, '#ea580c');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            };
+
+            const mjesec = (x, y, r) => {
+                ctx.fillStyle = '#eab308';
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0.25 * Math.PI, 1.45 * Math.PI, false);
+                ctx.arc(x + r * 0.45, y - r * 0.3, r * 0.82, 1.35 * Math.PI, 0.35 * Math.PI, true);
+                ctx.closePath();
+                ctx.fill();
+            };
+
+            const oblak = (ox, oy, sk, bojaTop, bojaBot) => {
+                ctx.save();
+                ctx.translate(ox, oy);
+                ctx.scale(sk, sk);
+                const g = ctx.createLinearGradient(0, -8, 0, 7);
+                g.addColorStop(0, bojaTop);
+                g.addColorStop(1, bojaBot);
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(-5, 1, 5.2, Math.PI * 0.5, Math.PI * 1.5);
+                ctx.arc(-1, -3.5, 6.2, Math.PI * 1.0, Math.PI * 1.85);
+                ctx.arc(5, -1, 5.5, Math.PI * 1.3, Math.PI * 0.45);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            };
+
+            const kapi = (broj, duzina, boja) => {
+                ctx.strokeStyle = boja;
+                ctx.lineWidth = broj >= 4 ? 1.9 : 1.7;
+                ctx.lineCap = 'round';
+                const startX = -((broj - 1) * 3.8) / 2;
+                for (let i = 0; i < broj; i++) {
+                    const kx = startX + i * 3.8;
+                    const ky = 5.5 + (i % 2) * 1.2;
+                    ctx.beginPath();
+                    ctx.moveTo(kx, ky);
+                    ctx.lineTo(kx - duzina * 0.32, ky + duzina);
+                    ctx.stroke();
+                }
+            };
+
+            const pahulje = (broj) => {
+                ctx.strokeStyle = '#0284c7';
+                ctx.lineWidth = 1.4;
+                const startX = -((broj - 1) * 5) / 2;
+                for (let i = 0; i < broj; i++) {
+                    const px = startX + i * 5;
+                    const py = 8 + (i % 2) * 1.5;
+                    for (let a = 0; a < 180; a += 60) {
+                        const rad = a * Math.PI / 180;
+                        ctx.beginPath();
+                        ctx.moveTo(px - Math.cos(rad) * 2.4, py - Math.sin(rad) * 2.4);
+                        ctx.lineTo(px + Math.cos(rad) * 2.4, py + Math.sin(rad) * 2.4);
+                        ctx.stroke();
+                    }
+                }
+            };
+
+            const munja = () => {
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.moveTo(0, 2);
+                ctx.lineTo(-4, 8.5);
+                ctx.lineTo(-0.5, 8.5);
+                ctx.lineTo(-2.5, 14.5);
+                ctx.lineTo(4.5, 7);
+                ctx.lineTo(0.8, 7);
+                ctx.lineTo(2.5, 2);
+                ctx.closePath();
+                ctx.fill();
+            };
+
+            if (v === 'vedro_dan') {
+                sunce(0, 0, 6.8);
+            } else if (v === 'vedro_noc') {
+                mjesec(0, 0, 7.2);
+            } else if (v === 'malo_oblacno_dan' || v === 'umjereno_oblacno_dan') {
+                sunce(-4, -3, 5.2);
+                oblak(2, 2, 0.95, '#ffffff', '#94a3b8');
+            } else if (v === 'malo_oblacno_noc' || v === 'umjereno_oblacno_noc') {
+                mjesec(-4, -3, 5.5);
+                oblak(2, 2, 0.95, '#f1f5f9', '#64748b');
+            } else if (v === 'oblacno') {
+                oblak(3, -1, 0.82, '#cbd5e1', '#64748b');
+                oblak(-1, 2, 0.98, '#f8fafc', '#94a3b8');
+            } else if (v === 'magla' || v === 'ledena_magla') {
+                oblak(0, -1, 0.9, '#e2e8f0', '#94a3b8');
+                ctx.strokeStyle = v === 'ledena_magla' ? '#06b6d4' : '#64748b';
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.moveTo(-8, 6.5); ctx.lineTo(8, 6.5);
+                ctx.moveTo(-6, 10); ctx.lineTo(6, 10);
+                ctx.stroke();
+            } else if (v === 'rosulja_slaba' || v === 'kisa_slaba' || v.startsWith('pljusak_slab')) {
+                if (v.includes('dan')) sunce(-4, -4, 4.5);
+                oblak(0, -1, 0.95, '#f1f5f9', '#64748b');
+                kapi(2, 4.8, '#3b82f6');
+            } else if (v === 'rosulja_srednja' || v === 'rosulja_jaka' || v === 'kisa_srednja' || v.startsWith('pljusak_srednji')) {
+                if (v.includes('dan')) sunce(-4, -4, 4.5);
+                oblak(0, -1, 0.98, '#cbd5e1', '#475569');
+                kapi(3, 6.2, '#2563eb');
+            } else if (v === 'kisa_jaka' || v.startsWith('pljusak_jak')) {
+                oblak(2, -2, 0.82, '#94a3b8', '#334155');
+                oblak(-1, 0, 0.98, '#64748b', '#1e293b');
+                kapi(4, 7.8, '#1d4ed8');
+            } else if (v.startsWith('ledena_kisa')) {
+                oblak(0, -1, 0.98, '#cbd5e1', '#475569');
+                kapi(2, 6.0, '#2563eb');
+                pahulje(1);
+            } else if (v === 'snijeg_slab') {
+                oblak(0, -1, 0.95, '#f1f5f9', '#94a3b8');
+                pahulje(2);
+            } else if (v === 'snijeg_srednji') {
+                oblak(0, -1, 0.98, '#cbd5e1', '#64748b');
+                pahulje(3);
+            } else if (v === 'snijeg_jak') {
+                oblak(2, -2, 0.82, '#94a3b8', '#475569');
+                oblak(-1, 0, 0.98, '#94a3b8', '#334155');
+                pahulje(3);
+            } else {
+                oblak(2, -2, 0.82, '#64748b', '#1e293b');
+                oblak(-1, 0, 1.0, '#475569', '#0f172a');
+                kapi(2, 6.5, '#1d4ed8');
+                munja();
+            }
+
+            ctx.restore();
         }
 
         function generisiMeteoblueCanvas() {
@@ -2507,11 +3035,9 @@
             canvas.height = H;
             const ctx = canvas.getContext('2d');
 
-            // Pozadina
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, W, H);
 
-            // Odabrani grad i model za zaglavlje slike
             const selectEl = document.getElementById('city-select');
             const imeGrada = selectEl && selectEl.options[selectEl.selectedIndex]
                 ? selectEl.options[selectEl.selectedIndex].text.replace('📍 ', '')
@@ -2524,28 +3050,26 @@
             };
             const nazivModela = mapaImenaModela[odabraniModel] || odabraniModel;
 
-            // Gornja naslovna traka (Meteoblue stil)
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, W, 58);
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(`Meteogram 5 dana — ${imeGrada}`, 24, 37);
+            ctx.fillText(`Prognoza za 5 dana — ${imeGrada}`, 24, 37);
 
             ctx.fillStyle = '#93c5fd';
             ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'right';
-            ctx.fillText(`Izvor: ${nazivModela}  |  Open-Meteo BiH`, W - 24, 36);
+            ctx.fillText(`Izvor: ${nazivModela}  |  Vrijeme BiH`, W - 24, 36);
 
-            // Geometrija 3 panela (1: Temperatura & Vrijeme, 2: Oblaci po visini & Padavine, 3: Vjetar & Pritisak)
             const L = 92;
             const R = W - 76;
             const plotW = R - L;
             const danW = plotW / BROJ_DANA;
 
-            const P1_TOP = 112, P1_BOT = 372; // Temperatura (°C) + ikone
-            const P2_TOP = 416, P2_BOT = 666; // Oblaci (%) + Padavine (mm)
-            const P3_TOP = 710, P3_BOT = 870; // Vjetar (km/h) + Smjer + Pritisak (hPa)
+            const P1_TOP = 112, P1_BOT = 372;
+            const P2_TOP = 416, P2_BOT = 666;
+            const P3_TOP = 710, P3_BOT = 870;
 
             const pocetakSvih = parsirajApiVrijeme(`${datumPocetni}T00:00`);
             const krajSvih = parsirajApiVrijeme(`${pomjeriDatumString(datumPocetni, BROJ_DANA - 1)}T23:59`);
@@ -2584,7 +3108,6 @@
             }
             if (uzorci.length < 2) return canvas;
 
-            // Dnevne/noćne trake i zaglavlja za 5 dana
             for (let d = 0; d < BROJ_DANA; d++) {
                 const datumD = pomjeriDatumString(datumPocetni, d);
                 const sunInfoD = globalSunMapa[datumD];
@@ -2593,7 +3116,6 @@
                 const krajD = parsirajApiVrijeme(`${datumD}T23:59`);
                 const xU = (t) => xDanStart + Math.min(1, Math.max(0, (t - pocetakD) / (krajD - pocetakD))) * danW;
 
-                // Zaglavlje dana
                 ctx.fillStyle = d % 2 === 0 ? '#f1f5f9' : '#e2e8f0';
                 ctx.fillRect(xDanStart, 64, danW, 42);
 
@@ -2605,7 +3127,6 @@
                 ctx.textAlign = 'center';
                 ctx.fillText(nazivDana, xDanStart + danW / 2, 83);
 
-                // Sati ispod naziva dana (03, 06, 09, 12, 15, 18, 21)
                 ctx.fillStyle = '#475569';
                 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 [3, 6, 9, 12, 15, 18, 21].forEach(h => {
@@ -2613,7 +3134,6 @@
                     ctx.fillText(`${String(h).padStart(2, '0')}h`, xH, 101);
                 });
 
-                // Noćno sjenčenje kroz sva 3 panela
                 [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
                     if (sunInfoD) {
                         ctx.fillStyle = 'rgba(148, 163, 184, 0.16)';
@@ -2628,7 +3148,6 @@
                     }
                 });
 
-                // Žuta traka dnevnog svjetla na dnu P1
                 if (sunInfoD) {
                     const xSr = Math.max(xDanStart, xU(sunInfoD.sunrise));
                     const xSs = Math.min(xDanStart + danW, xU(sunInfoD.sunset));
@@ -2637,20 +3156,18 @@
                 }
             }
 
-            // ================= PANEL 1: TEMPERATURA (°C) & IKONE =================
+            // PANEL 1: TEMPERATURA & NAPREDNE VEKTORSKE IKONE
             const sveT = uzorci.map(u => Math.min(u.temp, u.feels)).concat(uzorci.map(u => Math.max(u.temp, u.feels)));
             const tMin = Math.floor((Math.min(...sveT) - 2) / 5) * 5;
             const tMax = Math.ceil((Math.max(...sveT) + 3) / 5) * 5;
             const tRaspon = Math.max(10, tMax - tMin);
             const yTempP1 = (v) => (P1_BOT - 12) - ((v - tMin) / tRaspon) * ((P1_BOT - 12) - (P1_TOP + 42));
 
-            // Naslov Panela 1
             ctx.fillStyle = '#1e293b';
             ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('TEMPERATURA (°C) & VREMENSKE PRILIKE', L, P1_TOP - 3);
+            ctx.fillText('TEMPERATURA (°C) & VREMENSKE PRILIKE', L, P1_TOP - 6);
 
-            // Horizontalna mreža za temperaturu (svakih 5°C)
             const korakT = tRaspon > 25 ? 5 : 2;
             for (let tv = tMin; tv <= tMax; tv += korakT) {
                 const yG = yTempP1(tv);
@@ -2670,7 +3187,6 @@
                 ctx.fillText(`${tv}°C`, R + 8, yG + 4);
             }
 
-            // Ispuna ispod temperaturne krive po boji temperature
             for (let i = 0; i < uzorci.length - 1; i++) {
                 const a = uzorci[i], b = uzorci[i + 1];
                 const yA = yTempP1(a.temp), yB = yTempP1(b.temp);
@@ -2686,7 +3202,6 @@
             }
             ctx.globalAlpha = 1.0;
 
-            // Isprekidana linija subjektivnog osjećaja
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 1.8;
             ctx.setLineDash([5, 4]);
@@ -2699,7 +3214,6 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Glavna kriva temperature
             ctx.strokeStyle = '#dc2626';
             ctx.lineWidth = 3.2;
             ctx.beginPath();
@@ -2710,7 +3224,6 @@
             });
             ctx.stroke();
 
-            // Vremenske ikone i brojevi temperature svaka 3 sata + Min/Max po danu
             for (let d = 0; d < BROJ_DANA; d++) {
                 const datumD = pomjeriDatumString(datumPocetni, d);
                 const sunInfoD = globalSunMapa[datumD];
@@ -2721,12 +3234,9 @@
                     const u = uzorciD.find(item => item.t.getUTCHours() === sat);
                     if (!u) return;
                     const jeMrak = sunInfoD ? (u.t < sunInfoD.sunrise || u.t > sunInfoD.sunset) : (sat < 6 || sat >= 20);
-                    ctx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(dajIkonuZaGrafikon(u.code, jeMrak), u.x, P1_TOP + 24);
+                    nacrtajCanvasVremenskuIkonu(ctx, u.x, P1_TOP + 18, u.code, jeMrak, u.mm);
                 });
 
-                // Dnevni Min i Max bedževi
                 let minU = uzorciD[0], maxU = uzorciD[0];
                 uzorciD.forEach(u => {
                     if (u.temp < minU.temp) minU = u;
@@ -2742,13 +3252,12 @@
                 ctx.fillText(`${Math.round(maxU.temp)}°`, maxU.x, Math.max(P1_TOP + 42, yTempP1(maxU.temp) - 8));
             }
 
-            // ================= PANEL 2: OBLACI PO VISINI (%) & PADAVINE (mm) =================
+            // PANEL 2: OBLACI PO VISINI & PADAVINE
             ctx.fillStyle = '#1e293b';
             ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText('OBLACI PO VISINI (%) & PADAVINE (mm/h i šansa %)', L, P2_TOP - 6);
 
-            // Mreža Panela 2
             [0.25, 0.5, 0.75].forEach(frak => {
                 const yG = P2_TOP + frak * (P2_BOT - P2_TOP);
                 ctx.strokeStyle = '#e2e8f0';
@@ -2759,7 +3268,6 @@
                 ctx.stroke();
             });
 
-            // Oznake na lijevoj osi (Oblaci gore, Padavine mm dole)
             ctx.fillStyle = '#64748b';
             ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'right';
@@ -2770,7 +3278,6 @@
             ctx.fillText('5 mm', L - 8, P2_BOT - 40);
             ctx.fillText('0 mm', L - 8, P2_BOT - 2);
 
-            // Meteoblue stil: sivi oblaci vise sa gornje ivice Panela 2 u 3 sloja gustine
             const oblakMaxDubina = (P2_BOT - P2_TOP) * 0.62;
             [
                 { faktor: 1.0, boja: 'rgba(148, 163, 184, 0.38)' },
@@ -2789,7 +3296,6 @@
                 ctx.fill();
             });
 
-            // Svijetloplava kriva vjerovatnoće padavina (%) na dnu Panela 2
             ctx.fillStyle = 'rgba(59, 130, 246, 0.16)';
             ctx.beginPath();
             ctx.moveTo(uzorci[0].x, P2_BOT);
@@ -2801,7 +3307,6 @@
             ctx.closePath();
             ctx.fill();
 
-            // Plavi stubići padavina (mm) na dnu Panela 2
             const korakX = plotW / Math.max(1, uzorci.length);
             uzorci.forEach((u, idx) => {
                 if (u.mm >= 0.1 || (u.pop >= 60 && u.oblacnost >= 35)) {
@@ -2819,7 +3324,7 @@
                 }
             });
 
-            // ================= PANEL 3: VJETAR (km/h), SMJER & PRITISAK (hPa) =================
+            // PANEL 3: VJETAR & PRITISAK
             ctx.fillStyle = '#1e293b';
             ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
@@ -2833,7 +3338,6 @@
             const yVjP3 = (v) => P3_BOT - (v / maxVj) * (P3_BOT - (P3_TOP + 28));
             const yPrP3 = (p) => (P3_BOT - 8) - ((p - minPr) / rasponPr) * ((P3_BOT - 8) - (P3_TOP + 28));
 
-            // Mreža i ose Panela 3
             [0, 0.5, 1].forEach(frak => {
                 const yG = P3_BOT - frak * (P3_BOT - (P3_TOP + 28));
                 ctx.strokeStyle = '#e2e8f0';
@@ -2855,7 +3359,6 @@
                 ctx.fillText(`${pVal} hPa`, R + 8, yG + 4);
             });
 
-            // Ispuna i kriva brzine vjetra (tirkizno-zelena, Meteoblue stil)
             ctx.fillStyle = 'rgba(20, 184, 166, 0.22)';
             ctx.beginPath();
             ctx.moveTo(uzorci[0].x, P3_BOT);
@@ -2873,7 +3376,6 @@
             });
             ctx.stroke();
 
-            // Kriva pritiska (hPa)
             ctx.strokeStyle = '#475569';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -2883,7 +3385,6 @@
             });
             ctx.stroke();
 
-            // Strelice smjera vjetra svaka 3 sata na vrhu Panela 3
             for (let d = 0; d < BROJ_DANA; d++) {
                 const datumD = pomjeriDatumString(datumPocetni, d);
                 const uzorciD = uzorci.filter(u => u.iso.startsWith(datumD));
@@ -2906,7 +3407,6 @@
                 });
             }
 
-            // Okviri panela i vertikalne linije između 5 dana
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 1.2;
             [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
@@ -2920,7 +3420,6 @@
                 }
             });
 
-            // Footer potpis na dnu slike
             ctx.fillStyle = '#64748b';
             ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
@@ -2941,7 +3440,7 @@
                 ? selectEl.options[selectEl.selectedIndex].text.replace('📍 ', '')
                 : 'BiH';
             const titleEl = document.getElementById('meteogram-modal-title');
-            if (titleEl) titleEl.innerText = `Meteogram 5 dana — ${imeGrada}`;
+            if (titleEl) titleEl.innerText = `Prognoza za 5 dana — ${imeGrada}`;
 
             const modal = document.getElementById('meteogram-modal');
             if (modal) modal.classList.add('open');
@@ -2960,7 +3459,7 @@
                 : 'bih';
 
             const link = document.createElement('a');
-            link.download = `meteogram-5-dana-${imeGrada}.png`;
+            link.download = `prognoza-5-dana-${imeGrada}.png`;
             link.href = zadnjiMeteoblueDataUrl;
             document.body.appendChild(link);
             link.click();
@@ -3115,7 +3614,7 @@
                 nacrtajSuncevuPutanju(podatak);
 
                 document.getElementById('big-temp-val').innerText = `${podatak.temp} °C`;
-                document.getElementById('weather-icon').innerText = dajIkonuVremena(podatak.picto);
+                document.getElementById('weather-icon').innerHTML = dajNaprednuIkonuSvg(podatak.picto, podatak.jeMrak, podatak.mm || 0, 78);
 
                 document.getElementById('temp-val').innerText = `${podatak.feelsLike} °C`;
                 const tempArrow = document.getElementById('temp-arrow');
