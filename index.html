@@ -175,15 +175,19 @@
 
         .sun-path-wrapper {
             width: 100%;
-            margin: 6px 0 4px 0;
-            /* FIX: "skrolnem sa desna u lijevo... tri dana ukupno" - grafikon je sad
-               HORIZONTALNO SKROLABILAN (širi od kartice), umjesto statične slike za
-               jedan dan. overflow-x:auto omogućava prevlačenje prstom kroz 3 dana. */
+            margin: 6px 0 2px 0;
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
-            scroll-snap-type: x proximity;
             border-radius: 8px;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            position: relative;
+        }
+        .sun-path-wrapper.scrubbing-active {
+            cursor: ew-resize;
         }
         .sun-path-wrapper::-webkit-scrollbar {
             height: 4px;
@@ -206,12 +210,32 @@
             font-weight: 700;
             fill: #94a3b8;
         }
+        .sun-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+        .sun-title-row .sun-title {
+            margin-bottom: 0;
+        }
+        .chart-hint-text {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-align: center;
+            margin-top: 3px;
+        }
         .sun-path-status {
             text-align: center;
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             font-weight: 700;
             color: #475569;
-            margin-top: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .btn-meteogram-export {
             margin-top: 10px;
@@ -391,26 +415,37 @@
 
         .sun-times {
             display: flex;
+            align-items: center;
             justify-content: space-between;
+            gap: 6px;
             margin-top: 8px;
-            padding: 0 10px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 10px;
+            padding: 7px 10px;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            flex-wrap: nowrap;
         }
         .sun-time-box {
-            display: flex;
-            flex-direction: column;
+            display: inline-flex;
+            flex-direction: row;
             align-items: center;
+            gap: 3px;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         .sun-time-label {
             font-size: 0.7rem;
-            color: #94a3b8;
-            font-weight: 600;
+            color: #64748b;
+            font-weight: 700;
         }
         .sun-time-val {
-            font-size: 0.95rem;
+            font-size: 0.78rem;
             font-weight: 800;
             color: #0f172a;
+        }
+        body.dark-mode .sun-times {
+            background-color: #141e30;
+            border-color: #263244;
         }
 
         .combined-summary-box {
@@ -491,92 +526,120 @@
             color: #f8fafc;
         }
 
-        .picker-label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-            text-align: center;
-        }
-
-        .picker-wrapper {
-            position: relative;
-            height: 120px;
-            width: 100%;
-            max-width: 180px;
-            margin: 0 auto 15px auto;
-            overflow: hidden;
-            background-color: #f8fafc;
-            border-radius: 14px;
+        .chart-scrubber-box {
+            margin: 8px 0 6px 0;
+            padding: 8px 10px;
+            background-color: #ffffff;
             border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            user-select: none;
+            -webkit-user-select: none;
         }
-
-        .picker-wrapper::before,
-        .picker-wrapper::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 40px;
-            z-index: 2;
-            pointer-events: none;
-        }
-
-        .picker-wrapper::before {
-            top: 0;
-            background: linear-gradient(to bottom, rgba(248,250,252,0.95), rgba(248,250,252,0));
-        }
-
-        .picker-wrapper::after {
-            bottom: 0;
-            background: linear-gradient(to top, rgba(248,250,252,0.95), rgba(248,250,252,0));
-        }
-
-        .picker-selection-line {
-            position: absolute;
-            top: 40px;
-            height: 40px;
-            left: 8px;
-            right: 8px;
-            background-color: #2563eb;
-            border-radius: 8px;
-            z-index: 1;
-            opacity: 0.15;
-            pointer-events: none;
-        }
-
-        .picker-list {
-            height: 100%;
-            overflow-y: scroll;
-            scroll-snap-type: y mandatory;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-            padding: 40px 0;
-        }
-
-        .picker-list::-webkit-scrollbar { display: none; }
-
-        .picker-item {
-            height: 40px;
+        .chart-scrubber-top {
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 1.05rem;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .active-hour-badge {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #1e40af;
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 3px 10px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-reset-now {
+            font-family: inherit;
+            font-size: 0.72rem;
             font-weight: 700;
-            color: #64748b;
-            scroll-snap-align: center;
+            color: #2563eb;
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 3px 9px;
             cursor: pointer;
             transition: all 0.15s ease;
-            position: relative;
-            z-index: 3;
         }
-
-        .picker-item.active {
-            color: #2563eb;
-            font-size: 1.25rem;
+        .btn-reset-now:hover {
+            background-color: #eff6ff;
+            border-color: #93c5fd;
+        }
+        .chart-scrubber-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .btn-hour-step {
+            font-family: inherit;
+            font-size: 0.8rem;
             font-weight: 800;
+            color: #1e293b;
+            background-color: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            width: 32px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+            touch-action: manipulation;
+        }
+        .btn-hour-step:hover {
+            background-color: #e2e8f0;
+            color: #2563eb;
+        }
+        .btn-hour-step:active {
+            transform: scale(0.95);
+        }
+        .chart-hour-scrubber {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(90deg, #93c5fd 0%, #2563eb 100%);
+            border-radius: 999px;
+            outline: none;
+            cursor: pointer;
+            margin: 0;
+            touch-action: pan-y;
+        }
+        .chart-hour-scrubber::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 3px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
+            cursor: grab;
+            transition: transform 0.1s ease;
+        }
+        .chart-hour-scrubber::-webkit-slider-thumb:active {
+            cursor: grabbing;
+            transform: scale(1.12);
+        }
+        .chart-hour-scrubber::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 3px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
+            cursor: grab;
         }
 
         .weather-info {
@@ -723,15 +786,28 @@
         body.dark-mode .wind-dir-text {
             color: #94a3b8;
         }
-        body.dark-mode .picker-wrapper {
-            background-color: #101827;
+        body.dark-mode .chart-scrubber-box {
+            background-color: #141e30;
             border-color: #263244;
         }
-        body.dark-mode .picker-item {
-            color: #64748b;
+        body.dark-mode .active-hour-badge {
+            background-color: #1e293b;
+            border-color: #3b82f6;
+            color: #93c5fd;
         }
-        body.dark-mode .picker-item.active {
-            color: #f8fafc;
+        body.dark-mode .btn-reset-now {
+            background-color: #1e293b;
+            border-color: #334155;
+            color: #93c5fd;
+        }
+        body.dark-mode .btn-hour-step {
+            background-color: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        body.dark-mode .btn-hour-step:hover {
+            background-color: #334155;
+            color: #60a5fa;
         }
         body.dark-mode .model-footer {
             border-top-color: #263244;
@@ -788,31 +864,36 @@
         </div>
 
         <div class="sun-card">
-            <div class="sun-title">Trenutna Temperatura</div>
+            <div class="sun-title-row">
+                <div id="sun-card-title" class="sun-title">Trenutna Temperatura</div>
+                <button type="button" id="btn-reset-now" class="btn-reset-now" onclick="vratiNaSada()" style="display: none;">↺ Vrati na sada</button>
+            </div>
             <div id="big-temp-val" class="big-temp-display">-- °C</div>
 
-            <div class="sun-path-wrapper">
+            <div class="sun-path-wrapper" id="sun-path-wrapper">
                 <svg id="sun-path-svg" class="sun-path-svg" viewBox="0 0 320 236" xmlns="http://www.w3.org/2000/svg">
                     <g id="dnevni-grafikon-bg"></g>
                     <line id="horizon-line-el" x1="0" y1="232" x2="1600" y2="232" class="horizon-line"></line>
+                    <g id="izabrani-sat-indikator"></g>
                 </svg>
             </div>
-            <div id="sun-path-status" class="sun-path-status">Računam poziciju sunca...</div>
-            <button type="button" id="btn-meteoblue-img" class="btn-meteogram-export" onclick="otvoriMeteoblueSliku()">
-                🖼️ Izvuci sliku od 5 dana
-            </button>
-
+            <div class="chart-hint-text">Prevucite za dane • Zadržite prst (~0.35s) na grafikonu za skrolanje sati</div>
 
             <div class="sun-times">
                 <div class="sun-time-box">
-                    <span class="sun-time-label">Izlazak Sunca</span>
+                    <span class="sun-time-label">🌅 Izlazak:</span>
                     <span id="sunrise-val" class="sun-time-val">--:--</span>
                 </div>
+                <div id="sun-path-status" class="sun-path-status">Računam...</div>
                 <div class="sun-time-box">
-                    <span class="sun-time-label">Zalazak Sunca</span>
+                    <span class="sun-time-label">🌇 Zalazak:</span>
                     <span id="sunset-val" class="sun-time-val">--:--</span>
                 </div>
             </div>
+
+            <button type="button" id="btn-meteoblue-img" class="btn-meteogram-export" onclick="otvoriMeteoblueSliku()">
+                🖼️ Izvuci sliku od 5 dana
+            </button>
 
             <div id="meteo-alert-box" class="meteo-alert-box">
                 <div id="meteo-alert-text" class="alert-text"></div>
@@ -828,11 +909,7 @@
             -->
         </div>
 
-        <div class="picker-label">Izaberi Sat</div>
-        <div class="picker-wrapper">
-            <div class="picker-selection-line"></div>
-            <div class="picker-list" id="pickerList" onscroll="handleRollerScroll()"></div>
-        </div>
+
 
         <div class="weather-info">
             <div class="info-card">
@@ -915,8 +992,10 @@
     <script>
         let prognozaPodaci = []; 
         let izabraniIndex = 0;
+        let pocetniSadaIndex = 0;
         let scrollTimeout;
         let isScrollingProgrammatically = false;
+        let zadnjaTemaGrafikona = null;
         let globalDailyData = null;
         let globalSunMapa = {};
         let posljednjiIzborMap = {}; 
@@ -1148,8 +1227,17 @@
             let trenutniIndex = hourlyData.time.findIndex(t => parsirajApiVrijeme(t) > sada) - 1;
             if (trenutniIndex < 0) trenutniIndex = 0;
 
-            return hourlyData.time.slice(trenutniIndex, trenutniIndex + 24).map((t, i) => {
-                const gi = trenutniIndex + i;
+            const danasDatumStr = hourlyData.time[trenutniIndex]
+                ? hourlyData.time[trenutniIndex].split('T')[0]
+                : `${sada.getUTCFullYear()}-${String(sada.getUTCMonth() + 1).padStart(2, '0')}-${String(sada.getUTCDate()).padStart(2, '0')}`;
+            let start5DanaIdx = hourlyData.time.findIndex(t => t.startsWith(danasDatumStr));
+            if (start5DanaIdx < 0) start5DanaIdx = trenutniIndex;
+
+            const brojSatiGrafikona = 24 * 5; // 5 kompletnih dana na grafikonu (120 sati)
+            pocetniSadaIndex = Math.max(0, Math.min(brojSatiGrafikona - 1, trenutniIndex - start5DanaIdx));
+
+            return hourlyData.time.slice(start5DanaIdx, start5DanaIdx + brojSatiGrafikona).map((t, i) => {
+                const gi = start5DanaIdx + i;
                 const satTekst = t.split('T')[1];
                 const satNum = parseInt(satTekst.split(':')[0], 10);
                 const datumStr = t.split('T')[0];
@@ -1197,10 +1285,13 @@
 
             // Zadrzavamo trenutno odabran sat (ne vracamo se na "sada") - korisnik
             // samo zeli vidjeti ISTI sat iz ugla drugog modela.
-            const zadrzaniIndex = Math.min(izabraniIndex, 23);
+            const zadrzaniIndex = izabraniIndex;
             prognozaPodaci = izgradiProgozaPodaci(zadnjaSirovaData.hourly, zadnjaSirovaData.daily, zadnjaSirovaData.offsetSekunde);
             izgradiRollerSati();
-            skrolujNaIndex(zadrzaniIndex);
+            if (prognozaPodaci.length > 0) {
+                izgradiDnevniGrafikon(prognozaPodaci[0].datum);
+            }
+            skrolujNaIndex(Math.min(zadrzaniIndex, Math.max(0, prognozaPodaci.length - 1)));
         }
 
         async function dajPodatke(lat, lon, sacuvajPoziciju = false) {
@@ -1266,11 +1357,15 @@
                     prognozaPodaci = izgradiProgozaPodaci(data.hourly, data.daily, offsetSekunde);
 
                     izgradiRollerSati();
+                    if (prognozaPodaci.length > 0) {
+                        azurirajTamnuTemu();
+                        izgradiDnevniGrafikon(prognozaPodaci[0].datum);
+                    }
                     if (sacuvajPoziciju && prognozaPodaci.length > 0) {
                         const noviIndex = Math.min(prethodniIndex, prognozaPodaci.length - 1);
-                        setTimeout(() => skrolujNaIndex(noviIndex), 100);
+                        setTimeout(() => skrolujNaIndex(noviIndex), 60);
                     } else {
-                        setTimeout(() => skrolujNaIndex(0), 100);
+                        setTimeout(() => skrolujNaIndex(pocetniSadaIndex), 60);
                     }
                 }
             } catch (err) {
@@ -1938,7 +2033,7 @@
                         const vecTrajalo = prethStanje && prethStanje.kljuc === stanje.kljuc;
 
                         let minPrelaza = 0;
-                        if (jeOdmahNaStartu && vecTrajalo && fokusIndex === 0 && u.datum === danasStr) {
+                        if (jeOdmahNaStartu && vecTrajalo && fokusIndex === pocetniSadaIndex && u.datum === danasStr) {
                             minPrelaza = Math.floor(stvarnoSada.getUTCMinutes() / 5) * 5;
                         } else if (!vecTrajalo) {
                             minPrelaza = izracunajMinutuPrelaza(preth, u, stanje.tipPrelaza);
@@ -2587,7 +2682,15 @@
             grupa.appendChild(vjetarTraka);
 
             // 2. Temperaturna ispuna i glatka linija
-            sviUzorci.forEach(u => { u.yTemp = yZaTemp(u.temp); });
+            const mapaIso = {};
+            prognozaPodaci.forEach(p => { mapaIso[p.fullIso] = p; });
+            sviUzorci.forEach(u => {
+                u.yTemp = yZaTemp(u.temp);
+                if (mapaIso[u.iso]) {
+                    mapaIso[u.iso].svgX = u.x;
+                    mapaIso[u.iso].svgYTemp = u.yTemp;
+                }
+            });
             for (let i = 0; i < sviUzorci.length - 1; i++) {
                 const a = sviUzorci[i], b = sviUzorci[i + 1];
                 const prosjecnaTemp = (a.temp + b.temp) / 2;
@@ -2887,6 +2990,9 @@
                 sadaLinija.setAttribute('opacity', '0.85');
                 grupa.appendChild(sadaLinija);
             }
+
+            zadnjaTemaGrafikona = jeTamniMod;
+            azurirajIndikatorSataNaGrafikonu(izabraniIndex);
         }
 
         let zadnjiMeteoblueDataUrl = "";
@@ -3565,12 +3671,149 @@
             }
         }
 
+        const KRATKI_DANI_BS = ["Ned", "Pon", "Uto", "Sri", "Čet", "Pet", "Sub"];
+        let aktivnaVertikalnaLinija = false;
+        let tajmerSkrivanjaLinije = null;
+
+        function azurirajIndikatorSataNaGrafikonu(idx, prikaziPunuLiniju = aktivnaVertikalnaLinija) {
+            const indGrupa = document.getElementById('izabrani-sat-indikator');
+            if (!indGrupa || !prognozaPodaci || !prognozaPodaci[idx]) return;
+            indGrupa.innerHTML = '';
+
+            const podatak = prognozaPodaci[idx];
+            const ukupnaSirina = 320 * 5;
+            const ukupnoSati = Math.max(1, prognozaPodaci.length - 1);
+            const x = podatak.svgX !== undefined ? podatak.svgX : (idx / ukupnoSati) * ukupnaSirina;
+            const yTemp = podatak.svgYTemp !== undefined ? podatak.svgYTemp : 95;
+            const ns = 'http://www.w3.org/2000/svg';
+            const jeTamniMod = document.body.classList.contains('dark-mode');
+
+            if (prikaziPunuLiniju) {
+                // Aktivno držanje/skrolanje sata: puna vertikalna linija, traka fokusa i pilula na vrhu
+                const traka = document.createElementNS(ns, 'rect');
+                traka.setAttribute('x', (x - 8).toFixed(1));
+                traka.setAttribute('y', '22');
+                traka.setAttribute('width', '16');
+                traka.setAttribute('height', '210');
+                traka.setAttribute('fill', jeTamniMod ? '#60a5fa' : '#2563eb');
+                traka.setAttribute('opacity', jeTamniMod ? '0.18' : '0.13');
+                indGrupa.appendChild(traka);
+
+                const linija = document.createElementNS(ns, 'line');
+                linija.setAttribute('x1', x.toFixed(1));
+                linija.setAttribute('y1', '20');
+                linija.setAttribute('x2', x.toFixed(1));
+                linija.setAttribute('y2', '232');
+                linija.setAttribute('stroke', jeTamniMod ? '#60a5fa' : '#2563eb');
+                linija.setAttribute('stroke-width', '2.2');
+                indGrupa.appendChild(linija);
+
+                const krugHalo = document.createElementNS(ns, 'circle');
+                krugHalo.setAttribute('cx', x.toFixed(1));
+                krugHalo.setAttribute('cy', yTemp.toFixed(1));
+                krugHalo.setAttribute('r', '9');
+                krugHalo.setAttribute('fill', jeTamniMod ? '#60a5fa' : '#2563eb');
+                krugHalo.setAttribute('opacity', '0.28');
+                indGrupa.appendChild(krugHalo);
+
+                const krug = document.createElementNS(ns, 'circle');
+                krug.setAttribute('cx', x.toFixed(1));
+                krug.setAttribute('cy', yTemp.toFixed(1));
+                krug.setAttribute('r', '5.2');
+                krug.setAttribute('fill', '#2563eb');
+                krug.setAttribute('stroke', '#ffffff');
+                krug.setAttribute('stroke-width', '2');
+                indGrupa.appendChild(krug);
+
+                const [gN, mN, dN] = podatak.datum.split('-').map(Number);
+                const dt = new Date(gN, mN - 1, dN);
+                const kratkiDan = KRATKI_DANI_BS[dt.getDay()];
+                const tekstPilule = `${kratkiDan} ${podatak.vreme} • ${podatak.temp}°C`;
+                const sirinaPilule = 94;
+                const xPilula = Math.min(ukupnaSirina - sirinaPilule / 2 - 4, Math.max(sirinaPilule / 2 + 4, x));
+
+                const pilula = document.createElementNS(ns, 'rect');
+                pilula.setAttribute('x', (xPilula - sirinaPilule / 2).toFixed(1));
+                pilula.setAttribute('y', '2');
+                pilula.setAttribute('width', sirinaPilule.toFixed(1));
+                pilula.setAttribute('height', '18');
+                pilula.setAttribute('rx', '9');
+                pilula.setAttribute('fill', '#2563eb');
+                indGrupa.appendChild(pilula);
+
+                const tekstEl = document.createElementNS(ns, 'text');
+                tekstEl.setAttribute('x', xPilula.toFixed(1));
+                tekstEl.setAttribute('y', '14');
+                tekstEl.setAttribute('text-anchor', 'middle');
+                tekstEl.setAttribute('font-size', '9.5');
+                tekstEl.setAttribute('font-weight', '800');
+                tekstEl.setAttribute('fill', '#ffffff');
+                tekstEl.textContent = tekstPilule;
+                indGrupa.appendChild(tekstEl);
+            } else {
+                // Diskretan trag nakon puštanja prsta/miša (suptilna isprekidana linija + tačka na krivoj + mala oznaka sata)
+                const tragLinija = document.createElementNS(ns, 'line');
+                tragLinija.setAttribute('x1', x.toFixed(1));
+                tragLinija.setAttribute('y1', '22');
+                tragLinija.setAttribute('x2', x.toFixed(1));
+                tragLinija.setAttribute('y2', '232');
+                tragLinija.setAttribute('stroke', jeTamniMod ? '#60a5fa' : '#2563eb');
+                tragLinija.setAttribute('stroke-width', '1.3');
+                tragLinija.setAttribute('stroke-dasharray', '3,3');
+                tragLinija.setAttribute('opacity', '0.45');
+                indGrupa.appendChild(tragLinija);
+
+                const krugHalo = document.createElementNS(ns, 'circle');
+                krugHalo.setAttribute('cx', x.toFixed(1));
+                krugHalo.setAttribute('cy', yTemp.toFixed(1));
+                krugHalo.setAttribute('r', '7.5');
+                krugHalo.setAttribute('fill', jeTamniMod ? '#60a5fa' : '#2563eb');
+                krugHalo.setAttribute('opacity', '0.22');
+                indGrupa.appendChild(krugHalo);
+
+                const krug = document.createElementNS(ns, 'circle');
+                krug.setAttribute('cx', x.toFixed(1));
+                krug.setAttribute('cy', yTemp.toFixed(1));
+                krug.setAttribute('r', '4.2');
+                krug.setAttribute('fill', jeTamniMod ? '#60a5fa' : '#2563eb');
+                krug.setAttribute('stroke', '#ffffff');
+                krug.setAttribute('stroke-width', '1.8');
+                indGrupa.appendChild(krug);
+
+                if (idx !== pocetniSadaIndex) {
+                    const sirinaOznake = 40;
+                    const xOzn = Math.min(ukupnaSirina - sirinaOznake / 2 - 4, Math.max(sirinaOznake / 2 + 4, x));
+                    const oznBg = document.createElementNS(ns, 'rect');
+                    oznBg.setAttribute('x', (xOzn - sirinaOznake / 2).toFixed(1));
+                    oznBg.setAttribute('y', '4');
+                    oznBg.setAttribute('width', sirinaOznake.toFixed(1));
+                    oznBg.setAttribute('height', '14');
+                    oznBg.setAttribute('rx', '7');
+                    oznBg.setAttribute('fill', jeTamniMod ? '#1e293b' : '#eff6ff');
+                    oznBg.setAttribute('stroke', jeTamniMod ? '#60a5fa' : '#3b82f6');
+                    oznBg.setAttribute('stroke-width', '1');
+                    oznBg.setAttribute('opacity', '0.95');
+                    indGrupa.appendChild(oznBg);
+
+                    const oznTxt = document.createElementNS(ns, 'text');
+                    oznTxt.setAttribute('x', xOzn.toFixed(1));
+                    oznTxt.setAttribute('y', '13.5');
+                    oznTxt.setAttribute('text-anchor', 'middle');
+                    oznTxt.setAttribute('font-size', '8.2');
+                    oznTxt.setAttribute('font-weight', '800');
+                    oznTxt.setAttribute('fill', jeTamniMod ? '#93c5fd' : '#1d4ed8');
+                    oznTxt.textContent = podatak.vreme;
+                    indGrupa.appendChild(oznTxt);
+                }
+            }
+        }
+
         function nacrtajSuncevuPutanju(item) {
             const statusEl = document.getElementById('sun-path-status');
             const sunInfo = globalSunMapa[item.datum];
 
             if (!sunInfo) {
-                statusEl.innerText = "Podaci o Sunčevoj putanji trenutno nisu dostupni.";
+                statusEl.innerText = "Nema podataka";
                 document.getElementById('dnevni-grafikon-bg').innerHTML = '';
                 return;
             }
@@ -3579,48 +3822,41 @@
             document.getElementById('sunset-val').innerText = formatVrijemeSati(sunInfo.sunset);
 
             azurirajTamnuTemu();
-            izgradiDnevniGrafikon(item.datum);
+            const jeTamniModSada = document.body.classList.contains('dark-mode');
+            const bgGrupa = document.getElementById('dnevni-grafikon-bg');
+            if (!bgGrupa.hasChildNodes() || zadnjaTemaGrafikona !== jeTamniModSada) {
+                izgradiDnevniGrafikon(prognozaPodaci[0].datum);
+            } else {
+                azurirajIndikatorSataNaGrafikonu(izabraniIndex, aktivnaVertikalnaLinija);
+            }
 
-            // FIX: prije se ovaj status (postotak/odbrojavanje do zalaska/izlaska)
-            // računao prema VREMENU IZABRANOG SATA (npr. "20:00" iz pickera), ne
-            // prema stvarnom trenutnom vremenu - zato je moglo pisati "zalazak za 6
-            // min" iako je sat na telefonu već pokazivao 20:36, pola sata NAKON
-            // stvarnog zalaska u 20:06. Sad, ako je izabrani dan DANAS, koristi se
-            // stvarno "sada" vrijeme (isto kao linija "sada" i tamna tema) - precizno
-            // do minute. Ako je korisnik ručno skrolao na neki DRUGI dan, i dalje se
-            // koristi vrijeme tog sata (jer poređenje "stvarno sada" sa zalaskom sunca
-            // nekog drugog dana ne bi imalo smisla).
             const offsetSekundeStatus = (zadnjaSirovaData && zadnjaSirovaData.offsetSekunde) || 0;
             const stvarnoSadaStatus = new Date(Date.now() + offsetSekundeStatus * 1000);
             const danasStrStatus = `${stvarnoSadaStatus.getUTCFullYear()}-${String(stvarnoSadaStatus.getUTCMonth() + 1).padStart(2, '0')}-${String(stvarnoSadaStatus.getUTCDate()).padStart(2, '0')}`;
-            const trenutak = (item.datum === danasStrStatus) ? stvarnoSadaStatus : parsirajApiVrijeme(item.fullIso);
+            const trenutak = (izabraniIndex === pocetniSadaIndex && item.datum === danasStrStatus)
+                ? stvarnoSadaStatus
+                : parsirajApiVrijeme(item.fullIso);
 
             if (trenutak >= sunInfo.sunrise && trenutak <= sunInfo.sunset) {
                 const frakcija = (trenutak - sunInfo.sunrise) / (sunInfo.sunset - sunInfo.sunrise);
                 const posto = Math.round(frakcija * 100);
                 const doZalaska = formatTrajanje(sunInfo.sunset - trenutak);
-                statusEl.innerText = `☀️ Dan — Sunce je na ${posto}% svog dnevnog puta (zalazak za ${doZalaska}).`;
+                statusEl.innerText = `☀️ Zalazak za ${doZalaska}`;
             } else {
-                let pocetakNoci, krajNoci;
+                let krajNoci;
                 if (trenutak < sunInfo.sunrise) {
-                    const jucerInfo = globalSunMapa[pomjeriDatumString(item.datum, -1)];
-                    pocetakNoci = jucerInfo ? jucerInfo.sunset : new Date(sunInfo.sunrise.getTime() - 11 * 3600 * 1000);
                     krajNoci = sunInfo.sunrise;
                 } else {
                     const sutraInfo = globalSunMapa[pomjeriDatumString(item.datum, 1)];
-                    pocetakNoci = sunInfo.sunset;
                     krajNoci = sutraInfo ? sutraInfo.sunrise : new Date(sunInfo.sunset.getTime() + 11 * 3600 * 1000);
                 }
 
                 const doIzlaska = formatTrajanje(krajNoci - trenutak);
-                statusEl.innerText = `🌙 Noć — Sunce izlazi za ${doIzlaska}.`;
+                statusEl.innerText = `🌙 Izlazak za ${doIzlaska}`;
             }
         }
 
         function azurirajTamnuTemu() {
-            // FIX: tamna tema se sad pali/gasi AUTOMATSKI na osnovu STVARNOG trenutnog
-            // vremena (ne izabranog/pregledanog sata) u odnosu na danasnji zalazak/izlazak
-            // sunca - ne treba ručni prekidač.
             if (!zadnjaSirovaData) return;
             const offsetSekunde = zadnjaSirovaData.offsetSekunde || 0;
             const stvarnoSada = new Date(Date.now() + offsetSekunde * 1000);
@@ -3634,66 +3870,87 @@
         }
 
         function izgradiRollerSati() {
-            const list = document.getElementById('pickerList');
-            list.innerHTML = '';
-            
-            prognozaPodaci.forEach((item, i) => {
-                const el = document.createElement('div');
-                el.className = 'picker-item';
-                el.innerText = item.vreme;
-                el.onclick = () => skrolujNaIndex(i);
-                list.appendChild(el);
-            });
+            // Zadržana funkcija radi kompatibilnosti; inicijalni prikaz je na grafikonu.
         }
 
-        function skrolujNaIndex(idx) {
-            const list = document.getElementById('pickerList');
-            const itemHeight = 40;
+        function skrolujGrafikonPremaIndexu(idx, glatko = false) {
+            const wrapper = document.getElementById('sun-path-wrapper');
+            if (!wrapper || !prognozaPodaci || prognozaPodaci.length <= 1) return;
+            const podatak = prognozaPodaci[idx];
+            const ukupnaSirina = 320 * 5;
+            const x = (podatak && podatak.svgX !== undefined)
+                ? podatak.svgX
+                : (idx / (prognozaPodaci.length - 1)) * ukupnaSirina;
+            const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+            if (maxScroll <= 0) return;
+
+            const ciljniScroll = Math.min(maxScroll, Math.max(0, x - wrapper.clientWidth / 2));
             isScrollingProgrammatically = true;
+            clearTimeout(scrollTimeout);
 
-            postaviIndex(idx);
-
-            try {
-                list.scrollTo({
-                    top: idx * itemHeight,
-                    behavior: 'smooth'
-                });
-            } catch (e) {
-                list.scrollTop = idx * itemHeight;
+            if (glatko && typeof wrapper.scrollTo === 'function') {
+                try {
+                    wrapper.scrollTo({ left: ciljniScroll, behavior: 'smooth' });
+                } catch (e) {
+                    wrapper.scrollLeft = ciljniScroll;
+                }
+                scrollTimeout = setTimeout(() => {
+                    isScrollingProgrammatically = false;
+                }, 320);
+            } else {
+                wrapper.scrollLeft = ciljniScroll;
+                scrollTimeout = setTimeout(() => {
+                    isScrollingProgrammatically = false;
+                }, 80);
             }
-
-            setTimeout(() => {
-                isScrollingProgrammatically = false;
-            }, 300);
         }
 
-        function handleRollerScroll() {
-            if (isScrollingProgrammatically) return;
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(() => {
-                const list = document.getElementById('pickerList');
-                const itemHeight = 40;
-                const newIdx = Math.round(list.scrollTop / itemHeight);
-                if (newIdx !== izabraniIndex && newIdx >= 0 && newIdx < prognozaPodaci.length) {
-                    postaviIndex(newIdx);
-                }
-            }, 60);
+        function skrolujNaIndex(idx, glatko = false) {
+            if (!prognozaPodaci || prognozaPodaci.length === 0) return;
+            const siguranIdx = Math.max(0, Math.min(prognozaPodaci.length - 1, idx));
+            postaviIndex(siguranIdx);
+            skrolujGrafikonPremaIndexu(siguranIdx, glatko);
+        }
+
+        function pomjeriSat(korak) {
+            if (!prognozaPodaci || prognozaPodaci.length === 0) return;
+            const noviIdx = Math.max(0, Math.min(prognozaPodaci.length - 1, izabraniIndex + korak));
+            aktivnaVertikalnaLinija = true;
+            clearTimeout(tajmerSkrivanjaLinije);
+            skrolujNaIndex(noviIdx, false);
+            tajmerSkrivanjaLinije = setTimeout(() => {
+                aktivnaVertikalnaLinija = false;
+                azurirajIndikatorSataNaGrafikonu(izabraniIndex, false);
+            }, 900);
+        }
+
+        function vratiNaSada() {
+            aktivnaVertikalnaLinija = false;
+            skrolujNaIndex(pocetniSadaIndex, true);
         }
 
         function postaviIndex(idx) {
+            if (!prognozaPodaci || prognozaPodaci.length === 0) return;
+            idx = Math.max(0, Math.min(prognozaPodaci.length - 1, idx));
             izabraniIndex = idx;
-            const list = document.getElementById('pickerList');
-            const items = list.children;
-
-            for (let i = 0; i < items.length; i++) {
-                if (i === idx) {
-                    items[i].classList.add('active');
-                } else {
-                    items[i].classList.remove('active');
-                }
-            }
 
             const podatak = prognozaPodaci[idx];
+            if (podatak) {
+                const titleEl = document.getElementById('sun-card-title');
+                const resetBtn = document.getElementById('btn-reset-now');
+                const [gN, mN, dN] = podatak.datum.split('-').map(Number);
+                const dt = new Date(gN, mN - 1, dN);
+                const nazivDana = NAZIVI_DANA_BS[dt.getDay()];
+                const jeSada = (idx === pocetniSadaIndex);
+                if (titleEl) {
+                    titleEl.innerText = jeSada
+                        ? 'Trenutna Temperatura'
+                        : `${nazivDana}, ${String(dN).padStart(2, '0')}.${String(mN).padStart(2, '0')}. • ${podatak.vreme}h`;
+                }
+                if (resetBtn) {
+                    resetBtn.style.display = jeSada ? 'none' : 'inline-flex';
+                }
+            }
             const prethodni = prognozaPodaci[idx - 1] || podatak;
 
             if (podatak) {
@@ -3797,6 +4054,188 @@
             const [lat, lon] = select.value.split(',');
             await dajPodatke(lat, lon, sacuvajPoziciju);
         }
+
+        (function inicijalizujInterakcijuGrafikona() {
+            const wrapper = document.getElementById('sun-path-wrapper');
+            const svgEl = document.getElementById('sun-path-svg');
+            if (!wrapper || !svgEl) return;
+
+            // Vrijeme zadržavanja prsta (350 ms) — optimalan balans:
+            // dovoljno kratko da ne čekate punu sekundu, a dovoljno dugo da
+            // obično prevlačenje prstom nesmetano skrola kroz 5 dana bez slučajnog paljenja linije.
+            const VRIJEME_CUVANJA_TOUCH_MS = 350;
+            const VRIJEME_CUVANJA_MIS_MS = 200;
+
+            let tajmerCuvanja = null;
+            let rezimSkrolanjaSata = false;
+            let rezimPomjeranjaDanaMisem = false;
+            let misPritisnut = false;
+            let startX = 0;
+            let startY = 0;
+            let startScrollLeft = 0;
+
+            const izracunajIndexIzKlika = (clientX) => {
+                if (!prognozaPodaci || prognozaPodaci.length <= 1) return 0;
+                const rect = svgEl.getBoundingClientRect();
+                if (!rect || rect.width <= 0) return izabraniIndex;
+                const relX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+                const frak = relX / rect.width;
+                return Math.round(frak * (prognozaPodaci.length - 1));
+            };
+
+            const aktivirajVertikalnuLiniju = (clientX) => {
+                rezimSkrolanjaSata = true;
+                aktivnaVertikalnaLinija = true;
+                clearTimeout(tajmerSkrivanjaLinije);
+                wrapper.classList.add('scrubbing-active');
+                if (navigator.vibrate) {
+                    try { navigator.vibrate(15); } catch (e) {}
+                }
+                const idx = izracunajIndexIzKlika(clientX);
+                postaviIndex(idx);
+                azurirajIndikatorSataNaGrafikonu(idx, true);
+            };
+
+            const deaktivirajVertikalnuLiniju = () => {
+                clearTimeout(tajmerCuvanja);
+                tajmerCuvanja = null;
+                if (rezimSkrolanjaSata || aktivnaVertikalnaLinija) {
+                    rezimSkrolanjaSata = false;
+                    aktivnaVertikalnaLinija = false;
+                    wrapper.classList.remove('scrubbing-active');
+                    azurirajIndikatorSataNaGrafikonu(izabraniIndex, false);
+                }
+                rezimPomjeranjaDanaMisem = false;
+                misPritisnut = false;
+            };
+
+            const azurirajSatPriPovlacenju = (clientX) => {
+                const wRect = wrapper.getBoundingClientRect();
+                if (clientX > wRect.right - 32) {
+                    wrapper.scrollLeft += 10;
+                } else if (clientX < wRect.left + 32) {
+                    wrapper.scrollLeft -= 10;
+                }
+                const idx = izracunajIndexIzKlika(clientX);
+                if (idx !== izabraniIndex) {
+                    postaviIndex(idx);
+                } else {
+                    azurirajIndikatorSataNaGrafikonu(idx, true);
+                }
+            };
+
+            // 1. MOBILNI UREĐAJI (Touch):
+            // - Brzi pokret prstom lijevo/desno -> slobodno skrola dane (5 dana).
+            // - Zadržavanje prsta ~0.35s u mjestu -> pali vertikalnu liniju i omogućava precizno skrolanje sata s lijeva na desno.
+            // - Puštanje prsta -> vertikalna linija nestaje i ostavlja diskretan trag na odabranom satu.
+            wrapper.addEventListener('touchstart', (e) => {
+                if (!e.touches || e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                startX = touch.clientX;
+                startY = touch.clientY;
+                startScrollLeft = wrapper.scrollLeft;
+                rezimSkrolanjaSata = false;
+
+                clearTimeout(tajmerCuvanja);
+                tajmerCuvanja = setTimeout(() => {
+                    aktivirajVertikalnuLiniju(startX);
+                }, VRIJEME_CUVANJA_TOUCH_MS);
+            }, { passive: true });
+
+            wrapper.addEventListener('touchmove', (e) => {
+                if (!e.touches || e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                const dx = Math.abs(touch.clientX - startX);
+                const dy = Math.abs(touch.clientY - startY);
+
+                if (rezimSkrolanjaSata) {
+                    // Dok je vertikalna linija aktivna, sprječavamo skrolanje stranice/kontejnera i precizno pomjeramo sat
+                    if (e.cancelable) e.preventDefault();
+                    azurirajSatPriPovlacenju(touch.clientX);
+                } else if (dx > 8 || dy > 8) {
+                    // Korisnik je odmah krenuo skrolati dane - otkazujemo tajmer čuvanja da se dani glatko skrolaju
+                    clearTimeout(tajmerCuvanja);
+                    tajmerCuvanja = null;
+                }
+            }, { passive: false });
+
+            wrapper.addEventListener('touchend', () => {
+                deaktivirajVertikalnuLiniju();
+            }, { passive: true });
+
+            wrapper.addEventListener('touchcancel', () => {
+                deaktivirajVertikalnuLiniju();
+            }, { passive: true });
+
+            // 2. PC (Miš):
+            // - Zadržavanje lijevog klika (~0.2s) ili klik u mjestu -> pali vertikalnu liniju za precizno skrolanje sata s lijeva na desno.
+            // - Brzo povlačenje odmah nakon klika -> skrola dane lijevo/desno.
+            // - Puštanje klika -> gasi vertikalnu liniju i ostavlja trag.
+            svgEl.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                misPritisnut = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startScrollLeft = wrapper.scrollLeft;
+                rezimSkrolanjaSata = false;
+                rezimPomjeranjaDanaMisem = false;
+
+                clearTimeout(tajmerCuvanja);
+                tajmerCuvanja = setTimeout(() => {
+                    if (misPritisnut && !rezimPomjeranjaDanaMisem) {
+                        aktivirajVertikalnuLiniju(startX);
+                    }
+                }, VRIJEME_CUVANJA_MIS_MS);
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!misPritisnut) return;
+                const dx = e.clientX - startX;
+
+                if (rezimSkrolanjaSata) {
+                    azurirajSatPriPovlacenju(e.clientX);
+                } else if (Math.abs(dx) > 7) {
+                    // Ako je korisnik odmah povukao mišem prije isteka 0.2s, pomjera prikaz kroz 5 dana
+                    clearTimeout(tajmerCuvanja);
+                    tajmerCuvanja = null;
+                    rezimPomjeranjaDanaMisem = true;
+                    wrapper.scrollLeft = startScrollLeft - dx;
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (!misPritisnut) return;
+                const bioKratkiKlik = !rezimSkrolanjaSata && !rezimPomjeranjaDanaMisem && Math.abs(e.clientX - startX) < 7;
+                deaktivirajVertikalnuLiniju();
+                if (bioKratkiKlik) {
+                    const idx = izracunajIndexIzKlika(e.clientX);
+                    postaviIndex(idx);
+                    azurirajIndikatorSataNaGrafikonu(idx, false);
+                }
+            });
+
+            // 3. Točkić miša iznad grafikona na PC-u i strelice na tastaturi
+            wrapper.addEventListener('wheel', (e) => {
+                if (!prognozaPodaci || prognozaPodaci.length === 0) return;
+                e.preventDefault();
+                const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+                if (delta === 0) return;
+                const korak = delta > 0 ? 1 : -1;
+                pomjeriSat(korak);
+            }, { passive: false });
+
+            window.addEventListener('keydown', (e) => {
+                const tag = (document.activeElement && document.activeElement.tagName) || '';
+                if (tag === 'SELECT' || tag === 'INPUT') return;
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    pomjeriSat(1);
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    pomjeriSat(-1);
+                }
+            });
+        })();
 
         promjeniGrad();
 
