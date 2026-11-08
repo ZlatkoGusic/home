@@ -2537,7 +2537,7 @@
             };
             const yZaPritisak = (p) => {
                 const norm = (p - minP) / rasponP;
-                return (baznaY - 18) - norm * ((baznaY - 18) - (Y_OBLACI_VRH + 14));
+                return (baznaY - 36) - norm * ((baznaY - 36) - (Y_OBLACI_VRH + 12));
             };
 
             // 1. Pozadinske noćne kolone
@@ -2661,11 +2661,13 @@
             pritisakPutanja.setAttribute('opacity', '0.85');
             grupa.appendChild(pritisakPutanja);
 
-            sviUzorci.forEach((u, idx) => {
+            sviUzorci.forEach((u) => {
                 const imaPadavine = u.mm >= 0.1 || (u.pop >= 55 && u.oblacnost >= 35);
+                u.visinaStuba = 0;
                 if (imaPadavine) {
                     const efektivniMm = u.mm >= 0.1 ? u.mm : ((u.pop - 50) / 50) * 0.6;
-                    const visinaStuba = Math.min(34, Math.max(4, efektivniMm * 8 + (u.pop / 100) * 8));
+                    const visinaStuba = Math.min(30, Math.max(4, efektivniMm * 7 + (u.pop / 100) * 6));
+                    u.visinaStuba = visinaStuba;
                     const snijeg = jeSnijeg(u.code);
                     const rect = document.createElementNS(ns, 'rect');
                     rect.setAttribute('x', (u.x - 2.2).toFixed(1));
@@ -2676,19 +2678,33 @@
                     rect.setAttribute('fill', snijeg ? '#06b6d4' : '#1d4ed8');
                     rect.setAttribute('opacity', '0.92');
                     grupa.appendChild(rect);
+                }
+            });
 
+            let zadnjiMmLabelIdx = -10;
+            sviUzorci.forEach((u, idx) => {
+                if (u.mm >= 0.2 && idx - zadnjiMmLabelIdx >= 4) {
                     const prethMm = idx > 0 ? sviUzorci[idx - 1].mm : 0;
                     const sljedMm = idx < sviUzorci.length - 1 ? sviUzorci[idx + 1].mm : 0;
-                    if (u.mm >= 0.2 && u.mm >= prethMm && u.mm >= sljedMm && idx % 2 === 0) {
+                    if (u.mm >= prethMm && u.mm >= sljedMm) {
+                        let maxH = u.visinaStuba || 0;
+                        for (let k = Math.max(0, idx - 1); k <= Math.min(sviUzorci.length - 1, idx + 1); k++) {
+                            if ((sviUzorci[k].visinaStuba || 0) > maxH) maxH = sviUzorci[k].visinaStuba;
+                        }
+                        const snijeg = jeSnijeg(u.code);
                         const mmTxt = document.createElementNS(ns, 'text');
                         mmTxt.setAttribute('x', u.x.toFixed(1));
-                        mmTxt.setAttribute('y', (baznaY - visinaStuba - 3).toFixed(1));
+                        mmTxt.setAttribute('y', (baznaY - maxH - 4).toFixed(1));
                         mmTxt.setAttribute('text-anchor', 'middle');
                         mmTxt.setAttribute('font-size', '7.5');
                         mmTxt.setAttribute('font-weight', '800');
-                        mmTxt.setAttribute('fill', snijeg ? '#0891b2' : '#2563eb');
+                        mmTxt.setAttribute('fill', snijeg ? '#0891b2' : '#3b82f6');
+                        mmTxt.setAttribute('stroke', jeTamniMod ? '#101827' : '#f8fafc');
+                        mmTxt.setAttribute('stroke-width', '2.5');
+                        mmTxt.setAttribute('paint-order', 'stroke');
                         mmTxt.textContent = `${u.mm.toFixed(1)}mm`;
                         grupa.appendChild(mmTxt);
+                        zadnjiMmLabelIdx = idx;
                     }
                 }
             });
@@ -2749,14 +2765,22 @@
 
                 const podneUzorak = uzorciDana.find(u => u.t.getUTCHours() === 13) || uzorciDana[Math.floor(uzorciDana.length / 2)];
                 if (podneUzorak) {
-                    const yP = yZaPritisak(podneUzorak.pritisak);
+                    const pIdx = sviUzorci.indexOf(podneUzorak);
+                    let maxStubOkolo = 0;
+                    for (let k = Math.max(0, pIdx - 2); k <= Math.min(sviUzorci.length - 1, pIdx + 2); k++) {
+                        if ((sviUzorci[k].visinaStuba || 0) > maxStubOkolo) maxStubOkolo = sviUzorci[k].visinaStuba;
+                    }
+                    const yP = Math.min(yZaPritisak(podneUzorak.pritisak) - 5, baznaY - maxStubOkolo - 14);
                     const pTxt = document.createElementNS(ns, 'text');
                     pTxt.setAttribute('x', podneUzorak.x.toFixed(1));
-                    pTxt.setAttribute('y', (yP - 4).toFixed(1));
+                    pTxt.setAttribute('y', Math.max(Y_OBLACI_VRH + 11, yP).toFixed(1));
                     pTxt.setAttribute('text-anchor', 'middle');
                     pTxt.setAttribute('font-size', '8');
                     pTxt.setAttribute('font-weight', '700');
                     pTxt.setAttribute('fill', jeTamniMod ? '#93c5fd' : '#475569');
+                    pTxt.setAttribute('stroke', jeTamniMod ? '#101827' : '#f8fafc');
+                    pTxt.setAttribute('stroke-width', '2.5');
+                    pTxt.setAttribute('paint-order', 'stroke');
                     pTxt.textContent = `${Math.round(podneUzorak.pritisak)}hPa`;
                     grupa.appendChild(pTxt);
                 }
@@ -2819,9 +2843,9 @@
 
                     const rot = (u.smjer + 180) % 360;
                     const strelicaG = document.createElementNS(ns, 'g');
-                    strelicaG.setAttribute('transform', `translate(${(u.x - 8).toFixed(1)}, 133) rotate(${rot.toFixed(0)})`);
+                    strelicaG.setAttribute('transform', `translate(${(u.x - 9.5).toFixed(1)}, 133) rotate(${rot.toFixed(0)})`);
                     const strelicaPath = document.createElementNS(ns, 'path');
-                    strelicaPath.setAttribute('d', 'M 0,-4.5 L 3.2,3.8 L 0,1.8 L -3.2,3.8 Z');
+                    strelicaPath.setAttribute('d', 'M 0,-4.2 L 3.0,3.5 L 0,1.6 L -3.0,3.5 Z');
                     strelicaPath.setAttribute('fill', 'none');
                     strelicaPath.setAttribute('stroke', bojaTekstSporedni);
                     strelicaPath.setAttribute('stroke-width', '1.2');
@@ -2829,7 +2853,7 @@
                     grupa.appendChild(strelicaG);
 
                     const vjBrzina = document.createElementNS(ns, 'text');
-                    vjBrzina.setAttribute('x', (u.x + 4).toFixed(1));
+                    vjBrzina.setAttribute('x', (u.x + 5).toFixed(1));
                     vjBrzina.setAttribute('y', '136');
                     vjBrzina.setAttribute('text-anchor', 'middle');
                     vjBrzina.setAttribute('font-size', '9.5');
@@ -3030,10 +3054,22 @@
 
             const canvas = document.createElement('canvas');
             const W = 1560;
-            const H = 920;
+            const H = 960;
             canvas.width = W;
             canvas.height = H;
             const ctx = canvas.getContext('2d');
+
+            const crtajTekstSaOkvirom = (tekst, x, y, bojaTeksta, bojaOkvira = 'rgba(255, 255, 255, 0.94)', debljina = 4) => {
+                ctx.save();
+                ctx.lineJoin = 'round';
+                ctx.miterLimit = 2;
+                ctx.strokeStyle = bojaOkvira;
+                ctx.lineWidth = debljina;
+                ctx.strokeText(tekst, x, y);
+                ctx.fillStyle = bojaTeksta;
+                ctx.fillText(tekst, x, y);
+                ctx.restore();
+            };
 
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, W, H);
@@ -3062,14 +3098,15 @@
             ctx.textAlign = 'right';
             ctx.fillText(`Izvor: ${nazivModela}  |  Vrijeme BiH`, W - 24, 36);
 
-            const L = 92;
-            const R = W - 76;
+            const L = 96;
+            const R = W - 82;
             const plotW = R - L;
             const danW = plotW / BROJ_DANA;
 
-            const P1_TOP = 112, P1_BOT = 372;
-            const P2_TOP = 416, P2_BOT = 666;
-            const P3_TOP = 710, P3_BOT = 870;
+            const HDR_TOP = 66, HDR_BOT = 112;
+            const P1_TOP = 144, P1_BOT = 402;
+            const P2_TOP = 442, P2_BOT = 684;
+            const P3_TOP = 724, P3_BOT = 890;
 
             const pocetakSvih = parsirajApiVrijeme(`${datumPocetni}T00:00`);
             const krajSvih = parsirajApiVrijeme(`${pomjeriDatumString(datumPocetni, BROJ_DANA - 1)}T23:59`);
@@ -3117,7 +3154,7 @@
                 const xU = (t) => xDanStart + Math.min(1, Math.max(0, (t - pocetakD) / (krajD - pocetakD))) * danW;
 
                 ctx.fillStyle = d % 2 === 0 ? '#f1f5f9' : '#e2e8f0';
-                ctx.fillRect(xDanStart, 64, danW, 42);
+                ctx.fillRect(xDanStart, HDR_TOP, danW, HDR_BOT - HDR_TOP);
 
                 const [gN, mN, dN] = datumD.split('-').map(Number);
                 const dtObj = new Date(gN, mN - 1, dN);
@@ -3125,13 +3162,13 @@
                 ctx.fillStyle = '#0f172a';
                 ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(nazivDana, xDanStart + danW / 2, 83);
+                ctx.fillText(nazivDana, xDanStart + danW / 2, HDR_TOP + 19);
 
                 ctx.fillStyle = '#475569';
                 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 [3, 6, 9, 12, 15, 18, 21].forEach(h => {
                     const xH = xDanStart + (h / 24) * danW;
-                    ctx.fillText(`${String(h).padStart(2, '0')}h`, xH, 101);
+                    ctx.fillText(`${String(h).padStart(2, '0')}h`, xH, HDR_TOP + 39);
                 });
 
                 [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
@@ -3156,22 +3193,34 @@
                 }
             }
 
+            // Okvir zaglavlja sa danima i satima
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.2;
+            ctx.strokeRect(L, HDR_TOP, plotW, HDR_BOT - HDR_TOP);
+            for (let d = 1; d < BROJ_DANA; d++) {
+                const xD = L + d * danW;
+                ctx.beginPath();
+                ctx.moveTo(xD, HDR_TOP);
+                ctx.lineTo(xD, HDR_BOT);
+                ctx.stroke();
+            }
+
             // PANEL 1: TEMPERATURA & NAPREDNE VEKTORSKE IKONE
             const sveT = uzorci.map(u => Math.min(u.temp, u.feels)).concat(uzorci.map(u => Math.max(u.temp, u.feels)));
             const tMin = Math.floor((Math.min(...sveT) - 2) / 5) * 5;
             const tMax = Math.ceil((Math.max(...sveT) + 3) / 5) * 5;
             const tRaspon = Math.max(10, tMax - tMin);
-            const yTempP1 = (v) => (P1_BOT - 12) - ((v - tMin) / tRaspon) * ((P1_BOT - 12) - (P1_TOP + 42));
+            const yTempP1 = (v) => (P1_BOT - 28) - ((v - tMin) / tRaspon) * ((P1_BOT - 28) - (P1_TOP + 62));
 
             ctx.fillStyle = '#1e293b';
             ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('TEMPERATURA (°C) & VREMENSKE PRILIKE', L, P1_TOP - 6);
+            ctx.fillText('TEMPERATURA (°C) & VREMENSKE PRILIKE', L, P1_TOP - 10);
 
             const korakT = tRaspon > 25 ? 5 : 2;
             for (let tv = tMin; tv <= tMax; tv += korakT) {
                 const yG = yTempP1(tv);
-                if (yG < P1_TOP + 34 || yG > P1_BOT - 6) continue;
+                if (yG < P1_TOP + 46 || yG > P1_BOT - 10) continue;
                 ctx.strokeStyle = tv === 0 ? '#2563eb' : '#e2e8f0';
                 ctx.lineWidth = tv === 0 ? 1.5 : 1;
                 ctx.beginPath();
@@ -3224,11 +3273,22 @@
             });
             ctx.stroke();
 
+            // Svijetla linija koja odvaja red ikona od temperaturne krive
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(L, P1_TOP + 38);
+            ctx.lineTo(R, P1_TOP + 38);
+            ctx.stroke();
+
             for (let d = 0; d < BROJ_DANA; d++) {
                 const datumD = pomjeriDatumString(datumPocetni, d);
                 const sunInfoD = globalSunMapa[datumD];
                 const uzorciD = uzorci.filter(u => u.iso.startsWith(datumD));
                 if (!uzorciD.length) continue;
+
+                const xDanStart = L + d * danW;
+                const xDanEnd = xDanStart + danW;
 
                 [1, 4, 7, 10, 13, 16, 19, 22].forEach(sat => {
                     const u = uzorciD.find(item => item.t.getUTCHours() === sat);
@@ -3244,19 +3304,27 @@
                 });
 
                 ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.fillStyle = '#1d4ed8';
                 ctx.textAlign = 'center';
-                ctx.fillText(`${Math.round(minU.temp)}°`, minU.x, Math.min(P1_BOT - 10, yTempP1(minU.temp) + 15));
 
-                ctx.fillStyle = '#b91c1c';
-                ctx.fillText(`${Math.round(maxU.temp)}°`, maxU.x, Math.max(P1_TOP + 42, yTempP1(maxU.temp) - 8));
+                // Pomjeramo X oznake min/max unutar kolone dana (min 18px od ivice) kako se ne bi
+                // preklapale sa vertikalnom linijom razdjelnika dana, lijevom/desnom osom ili susjednim danom,
+                // a Y postavljamo ispod/iznad obje krive (temp i subjektivni osjećaj) uz bijeli obrub.
+                const xMinLbl = Math.min(xDanEnd - 18, Math.max(xDanStart + 18, minU.x));
+                const dnoKriveMin = Math.max(yTempP1(minU.temp), yTempP1(minU.feels));
+                const yMinLbl = Math.min(P1_BOT - 9, dnoKriveMin + 15);
+                crtajTekstSaOkvirom(`${Math.round(minU.temp)}°`, xMinLbl, yMinLbl, '#1d4ed8');
+
+                const xMaxLbl = Math.min(xDanEnd - 18, Math.max(xDanStart + 18, maxU.x));
+                const vrhKriveMax = Math.min(yTempP1(maxU.temp), yTempP1(maxU.feels));
+                const yMaxLbl = Math.max(P1_TOP + 54, vrhKriveMax - 9);
+                crtajTekstSaOkvirom(`${Math.round(maxU.temp)}°`, xMaxLbl, yMaxLbl, '#b91c1c');
             }
 
             // PANEL 2: OBLACI PO VISINI & PADAVINE
             ctx.fillStyle = '#1e293b';
             ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('OBLACI PO VISINI (%) & PADAVINE (mm/h i šansa %)', L, P2_TOP - 6);
+            ctx.fillText('OBLACI PO VISINI (%) & PADAVINE (mm/h i šansa %)', L, P2_TOP - 10);
 
             [0.25, 0.5, 0.75].forEach(frak => {
                 const yG = P2_TOP + frak * (P2_BOT - P2_TOP);
@@ -3276,9 +3344,9 @@
             ctx.fillStyle = '#1d4ed8';
             ctx.fillText('10 mm', L - 8, P2_BOT - 80);
             ctx.fillText('5 mm', L - 8, P2_BOT - 40);
-            ctx.fillText('0 mm', L - 8, P2_BOT - 2);
+            ctx.fillText('0 mm', L - 8, P2_BOT - 4);
 
-            const oblakMaxDubina = (P2_BOT - P2_TOP) * 0.62;
+            const oblakMaxDubina = (P2_BOT - P2_TOP) * 0.60;
             [
                 { faktor: 1.0, boja: 'rgba(148, 163, 184, 0.38)' },
                 { faktor: 0.72, boja: 'rgba(100, 116, 139, 0.45)' },
@@ -3307,19 +3375,37 @@
             ctx.closePath();
             ctx.fill();
 
+            // 1. prolaz: crtamo sve stubiće padavina
             const korakX = plotW / Math.max(1, uzorci.length);
-            uzorci.forEach((u, idx) => {
+            uzorci.forEach((u) => {
+                u.hBar = 0;
                 if (u.mm >= 0.1 || (u.pop >= 60 && u.oblacnost >= 35)) {
                     const mmVrijednost = u.mm >= 0.1 ? u.mm : 0.25;
-                    const hBar = Math.min(P2_BOT - P2_TOP - 20, Math.max(5, mmVrijednost * 8));
+                    const hBar = Math.min(P2_BOT - P2_TOP - 28, Math.max(5, mmVrijednost * 8));
+                    u.hBar = hBar;
                     ctx.fillStyle = jeSnijeg(u.code) ? '#06b6d4' : '#1d4ed8';
                     ctx.fillRect(u.x - korakX * 0.38, P2_BOT - hBar, Math.max(4, korakX * 0.76), hBar);
+                }
+            });
 
-                    if (u.mm >= 0.4 && idx % 3 === 0) {
-                        ctx.fillStyle = '#1e3a8a';
-                        ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(`${u.mm.toFixed(1)}`, u.x, P2_BOT - hBar - 4);
+            // 2. prolaz: ispisujemo vrijednosti mm iznad najvišeg okolnog stubića da susjedni stubić nikad ne presiječe tekst
+            ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            let zadnjiMmIdx = -10;
+            uzorci.forEach((u, idx) => {
+                if (u.mm >= 0.4 && idx - zadnjiMmIdx >= 3) {
+                    const prethMm = idx > 0 ? uzorci[idx - 1].mm : 0;
+                    const sljedMm = idx < uzorci.length - 1 ? uzorci[idx + 1].mm : 0;
+                    if (u.mm >= prethMm && u.mm >= sljedMm) {
+                        let maxOkolniBar = u.hBar || 0;
+                        for (let k = Math.max(0, idx - 1); k <= Math.min(uzorci.length - 1, idx + 1); k++) {
+                            if ((uzorci[k].hBar || 0) > maxOkolniBar) maxOkolniBar = uzorci[k].hBar;
+                        }
+                        const danIdx = Math.min(BROJ_DANA - 1, Math.max(0, Math.floor((u.x - L) / danW)));
+                        const xDanStart = L + danIdx * danW;
+                        const xMm = Math.min(xDanStart + danW - 14, Math.max(xDanStart + 14, u.x));
+                        crtajTekstSaOkvirom(`${u.mm.toFixed(1)}`, xMm, P2_BOT - maxOkolniBar - 6, '#1e3a8a', 'rgba(255, 255, 255, 0.92)', 3.5);
+                        zadnjiMmIdx = idx;
                     }
                 }
             });
@@ -3328,18 +3414,18 @@
             ctx.fillStyle = '#1e293b';
             ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('VJETAR (km/h i smjer) & PRITISAK (hPa)', L, P3_TOP - 6);
+            ctx.fillText('VJETAR (km/h i smjer) & PRITISAK (hPa)', L, P3_TOP - 10);
 
             const maxVj = Math.max(30, Math.ceil(Math.max(...uzorci.map(u => u.vjetar)) / 10) * 10);
             const minPr = Math.floor(Math.min(...uzorci.map(u => u.pritisak)) - 2);
             const maxPr = Math.ceil(Math.max(...uzorci.map(u => u.pritisak)) + 2);
             const rasponPr = Math.max(8, maxPr - minPr);
 
-            const yVjP3 = (v) => P3_BOT - (v / maxVj) * (P3_BOT - (P3_TOP + 28));
-            const yPrP3 = (p) => (P3_BOT - 8) - ((p - minPr) / rasponPr) * ((P3_BOT - 8) - (P3_TOP + 28));
+            const yVjP3 = (v) => (P3_BOT - 6) - (v / maxVj) * ((P3_BOT - 6) - (P3_TOP + 34));
+            const yPrP3 = (p) => (P3_BOT - 10) - ((p - minPr) / rasponPr) * ((P3_BOT - 10) - (P3_TOP + 34));
 
             [0, 0.5, 1].forEach(frak => {
-                const yG = P3_BOT - frak * (P3_BOT - (P3_TOP + 28));
+                const yG = (P3_BOT - 6) - frak * ((P3_BOT - 6) - (P3_TOP + 34));
                 ctx.strokeStyle = '#e2e8f0';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -3393,7 +3479,7 @@
                     if (!u) return;
                     const rad = ((u.smjer + 180) % 360) * Math.PI / 180;
                     ctx.save();
-                    ctx.translate(u.x, P3_TOP + 14);
+                    ctx.translate(u.x, P3_TOP + 15);
                     ctx.rotate(rad);
                     ctx.fillStyle = '#0f172a';
                     ctx.beginPath();
@@ -3407,6 +3493,7 @@
                 });
             }
 
+            // Okviri panela i vertikalni razdjelnici samo UNUTAR svakog panela (da ne sijeku naslove između panela)
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 1.2;
             [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
@@ -3414,7 +3501,7 @@
                 for (let d = 1; d < BROJ_DANA; d++) {
                     const xD = L + d * danW;
                     ctx.beginPath();
-                    ctx.moveTo(xD, 64);
+                    ctx.moveTo(xD, yT);
                     ctx.lineTo(xD, yB);
                     ctx.stroke();
                 }
@@ -3423,7 +3510,7 @@
             ctx.fillStyle = '#64748b';
             ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('Legenda: Crvena linija = Temperatura (°C) | Siva isprekidana = Subjektivni osjećaj | Sivi slojevi = Oblaci (%) | Plavi stubići = Padavine (mm) | Tirkizno = Vjetar (km/h) | Tamnosiva = Pritisak (hPa)', L, H - 18);
+            ctx.fillText('Legenda: Crvena linija = Temperatura (°C) | Siva isprekidana = Subjektivni osjećaj | Sivi slojevi = Oblaci (%) | Plavi stubići = Padavine (mm) | Tirkizno = Vjetar (km/h) | Tamnosiva = Pritisak (hPa)', L, H - 22);
 
             return canvas;
         }
