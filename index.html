@@ -730,10 +730,6 @@
         }
 
         /* ===================== TAMNA TEMA ===================== */
-        /* FIX: pali se automatski (JS azurirajTamnuTemu()) kad je stvarno trenutno
-           vrijeme između zalaska i izlaska sunca za odabranu lokaciju. Napisano kao
-           odvojen override blok (ne dira postojeća light-mode pravila) da se smanji
-           rizik od kvarenja trenutnog izgleda. */
         body.dark-mode {
             background-color: #0b1220;
             color: #e2e8f0;
@@ -918,18 +914,7 @@
             <div id="meteo-alert-box" class="meteo-alert-box">
                 <div id="meteo-alert-text" class="alert-text"></div>
             </div>
-
-            <!-- ZAKOMENTARISAN ŠALJIVI METEO IZVJEŠTAJ:
-            <div class="combined-summary-box">
-                <div class="summary-header">⚡ Šaljivi meteo izvještaj</div>
-                <div id="combined-summary-text" class="summary-combined-text">
-                    Učitavanje opuštene analize...
-                </div>
-            </div>
-            -->
         </div>
-
-
 
         <div class="weather-info">
             <div class="info-card">
@@ -1021,32 +1006,7 @@
         let posljednjiIzborMap = {}; 
         let zadnjiZahtjevId = 0;
         let odabraniModel = "prosjek"; // "prosjek" | "icon_seamless" | "ecmwf_ifs025" | "chmi_aladin_seamless"
-        let zadnjaSirovaData = null; // { hourly, daily, offsetSekunde } - cuvamo da klik na model ne trazi ponovo API
-
-        function izaberiSablon(tip) {
-            const lista = bazeRecenica[tip] || bazeRecenica.dan_mirno;
-            let zadnjiIdx = posljednjiIzborMap[tip] !== undefined ? posljednjiIzborMap[tip] : -1;
-
-            let noviIdx;
-            if (lista.length <= 1) {
-                noviIdx = 0;
-            } else {
-                do {
-                    noviIdx = Math.floor(Math.random() * lista.length);
-                } while (noviIdx === zadnjiIdx);
-            }
-
-            posljednjiIzborMap[tip] = noviIdx;
-            return lista[noviIdx];
-        }
-
-        function uzmiPametnuRecenicu(tip, tempVal) {
-            return izaberiSablon(tip).replace(/\${TEMP}/g, tempVal);
-        }
-
-        function uzmiPametnuRecenicuMinMax(tip, minVal, maxVal) {
-            return izaberiSablon(tip).replace(/\${MIN}/g, minVal).replace(/\${MAX}/g, maxVal);
-        }
+        let zadnjaSirovaData = null;
 
         function formatirajDatumString(d) {
             const god = d.getFullYear();
@@ -1063,18 +1023,10 @@
         }
 
         function formatVrijemeSati(d) {
-            // FIX: koristimo getUTC* jer parsirajApiVrijeme() sve API stringove
-            // tumaci kao UTC (vidi napomenu u dajPodatke) - ovo osigurava tacan
-            // prikaz sata bez obzira na vremensku zonu uredjaja korisnika.
             return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
         }
 
         function parsirajApiVrijeme(apiString) {
-            // Open-Meteo (timezone=auto) vraca "YYYY-MM-DDTHH:MM" bez oznake zone,
-            // sto je zapravo lokalno vrijeme ODABRANE LOKACIJE, ne uredjaja korisnika.
-            // Dodavanjem 'Z' prisiljavamo JS da to tumaci kao fiksni, apsolutni
-            // trenutak (UTC), pa je svako dalje poredjenje (sunrise/sunset/sada)
-            // dosljedno i neovisno o vremenskoj zoni preglednika.
             return new Date(apiString + 'Z');
         }
 
@@ -1088,8 +1040,6 @@
         }
 
         function dajUVOpis(uv) {
-            // Standardna WHO skala UV indeksa - da broj sam po sebi ima kontekst
-            // (npr. "7" ne znači ništa laiku bez oznake da je to "Visok" rizik).
             if (uv >= 11) return { tekst: "Ekstreman", boja: "#7c3aed" };
             if (uv >= 8) return { tekst: "Vrlo visok", boja: "#dc2626" };
             if (uv >= 6) return { tekst: "Visok", boja: "#f97316" };
@@ -1118,26 +1068,14 @@
         }
 
         function jeSnijeg(code) {
-            // FIX: koristi se da tekst izvjestaja ne naziva snijeg "kisom".
-            // Prije je svaki weather_code >= 51 (sto ukljucuje i snijeg 71-77/85/86)
-            // bio opisivan iskljucivo kao "kisa" u kombinovanom izvjestaju.
             return (code >= 71 && code <= 77) || code === 85 || code === 86;
         }
 
         function stepeniUSmjer(deg) {
-            // FIX: skraćenice prevedene na bosanski (sjever/jug/istok/zapad i
-            // kombinacije), umjesto engleskih N/S/E/W/NE/SE/SW/NW.
             const strane = ["S", "SI", "I", "JI", "J", "JZ", "Z", "SZ"];
             return strane[Math.round(deg / 45) % 8];
         }
 
-        // FIX: "najtacnije vrijeme" - umjesto oslanjanja na jedan model (ranije: bez
-        // &models= parametra, sto je Open-Meteo automatski rjesavao u ICON za BiH),
-        // sada tražimo TRI nezavisna modela (ICON, ECMWF, ALADIN) i računamo prosjek. Ovo je
-        // standardna meteoroloska tehnika ("poor man's ensemble") - usrednjavanje nezavisnih
-        // modela obično smanjuje slučajnu grešku svakog pojedinačnog modela.
-        // Napomena: ALADIN (CHMI) pokriva prvenstveno Centralnu Evropu; ako za neku lokaciju
-        // nema podataka, prosjekVrijednosti() ga automatski preskace i koristi preostala 2 modela.
         const MODELI_ZA_PROSJEK = ["icon_seamless", "ecmwf_ifs025", "chmi_aladin_seamless"];
 
         function nadjiDnevnoPolje(objekat, baseIme, idx) {
@@ -1151,10 +1089,6 @@
         }
 
         function prosjekSmjeraVjetra(objekat, idx) {
-            // FIX: smjer vjetra je KRUŽNA veličina (0° = 360°). Običan aritmetički
-            // prosjek loše radi blizu sjevera - prosjek 350° i 10° treba biti 0°
-            // (sjever), a naivan prosjek bi dao 180° (jug), potpuno pogrešno.
-            // Zato se prosjek računa preko jediničnih vektora (sin/cos), ne preko brojeva.
             if (odabraniModel !== "prosjek") {
                 const kljuc = `wind_direction_10m_${odabraniModel}`;
                 if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
@@ -1185,9 +1119,6 @@
                 if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
                     return objekat[kljuc][idx];
                 }
-                // Odabrani model nema podatak za ovaj sat (npr. ALADIN nema domen za
-                // ovu lokaciju, ili je izvan svog 3-dnevnog horizonta) - umjesto praznine,
-                // tiho padamo na prosjek preostalih dostupnih modela.
             }
             let zbir = 0, brojac = 0;
             for (const m of MODELI_ZA_PROSJEK) {
@@ -1198,12 +1129,37 @@
                 }
             }
             if (brojac > 0) return zbir / brojac;
-            // Fallback: polje nije sufiksirano imenom modela (npr. ako API iz nekog
-            // razloga vrati samo jedan model, ili je polje astronomsko poput izlaska sunca).
             if (objekat[baseIme] && objekat[baseIme][idx] !== null && objekat[baseIme][idx] !== undefined) {
                 return objekat[baseIme][idx];
             }
             return null;
+        }
+
+        // NADOGRADNJA: Udari vjetra u kotlinama (Zenica, Sarajevo) često budu poništeni
+        // ako se uzme prosti prosjek sa globalnim ECMWF modelom (25km rezolucija).
+        // Kada je uključen "Prosjek", za udare vjetra uzimamo MAKSIMUM između modela
+        // (sigurnosni princip kao kod weather_code), kako bismo uhvatili lokalne olujne udare
+        // koje vide fini modeli (ICON / ALADIN), identično kako FHMZ pali Meteoalarm.
+        function maksimalniUdariVjetra(objekat, idx) {
+            if (odabraniModel !== "prosjek") {
+                const kljuc = `wind_gusts_10m_${odabraniModel}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    return objekat[kljuc][idx];
+                }
+            }
+            const vrijednosti = [];
+            for (const m of MODELI_ZA_PROSJEK) {
+                const kljuc = `wind_gusts_10m_${m}`;
+                if (objekat[kljuc] && objekat[kljuc][idx] !== null && objekat[kljuc][idx] !== undefined) {
+                    vrijednosti.push(objekat[kljuc][idx]);
+                }
+            }
+            if (vrijednosti.length > 0) return Math.max(...vrijednosti);
+            if (objekat.wind_gusts_10m && objekat.wind_gusts_10m[idx] !== null && objekat.wind_gusts_10m[idx] !== undefined) {
+                return objekat.wind_gusts_10m[idx];
+            }
+            const vProsjek = prosjekVrijednosti(objekat, "wind_speed_10m", idx);
+            return vProsjek !== null ? vProsjek * 1.45 + 2 : 0;
         }
 
         function konsenzusKodVremena(objekat, idx) {
@@ -1223,10 +1179,6 @@
             if (kodovi.length === 0) {
                 return objekat.weather_code ? objekat.weather_code[idx] : 0;
             }
-            // weather_code je kategorija, ne broj koji ima smisla prosjeciti (prosjek
-            // koda 3 i koda 61 ne znaci nista). Umjesto toga biramo OZBILJNIJI od dva -
-            // sigurnosno opreznije: ako makar jedan model najavljuje kišu/snijeg, tretiramo
-            // to ozbiljno, umjesto da ga "razrijedimo" prosjekom sa vedrim modelom.
             return Math.max(...kodovi);
         }
 
@@ -1253,7 +1205,7 @@
             let start5DanaIdx = hourlyData.time.findIndex(t => t.startsWith(danasDatumStr));
             if (start5DanaIdx < 0) start5DanaIdx = trenutniIndex;
 
-            const brojSatiGrafikona = 24 * 5; // 5 kompletnih dana na grafikonu (120 sati)
+            const brojSatiGrafikona = 24 * 5;
             pocetniSadaIndex = Math.max(0, Math.min(brojSatiGrafikona - 1, trenutniIndex - start5DanaIdx));
 
             return hourlyData.time.slice(start5DanaIdx, start5DanaIdx + brojSatiGrafikona).map((t, i) => {
@@ -1274,6 +1226,8 @@
 
                 const temp = prosjekVrijednosti(hourlyData, "temperature_2m", gi);
                 const feels = prosjekVrijednosti(hourlyData, "apparent_temperature", gi);
+                const vjBrzina = prosjekVrijednosti(hourlyData, "wind_speed_10m", gi);
+                const vjUdari = maksimalniUdariVjetra(hourlyData, gi);
 
                 return {
                     fullIso: t,
@@ -1286,7 +1240,8 @@
                     pop: (() => { const v = prosjekVrijednosti(hourlyData, "precipitation_probability", gi); return v !== null ? Math.round(v) : 0; })(),
                     mm: (() => { const v = prosjekVrijednosti(hourlyData, "precipitation", gi); return v !== null ? v : 0; })(),
                     uv: (() => { const v = prosjekVrijednosti(hourlyData, "uv_index", gi); return v !== null ? Math.round(v) : 0; })(),
-                    vjetar: (() => { const v = prosjekVrijednosti(hourlyData, "wind_speed_10m", gi); return v !== null ? Math.round(v) : 0; })(),
+                    vjetar: vjBrzina !== null ? Math.round(vjBrzina) : 0,
+                    udariVjetra: vjUdari !== null ? Math.round(vjUdari) : 0,
                     smjerVjetra: (() => { const v = prosjekSmjeraVjetra(hourlyData, gi); return v !== null ? v : 0; })(),
                     pritisak: (() => { const v = prosjekVrijednosti(hourlyData, "pressure_msl", gi); return v !== null ? Math.round(v) : 0; })(),
                     picto: code,
@@ -1303,8 +1258,6 @@
                 btn.classList.toggle('active', btn.dataset.model === noviModel);
             });
 
-            // Zadrzavamo trenutno odabran sat (ne vracamo se na "sada") - korisnik
-            // samo zeli vidjeti ISTI sat iz ugla drugog modela.
             const zadrzaniIndex = izabraniIndex;
             prognozaPodaci = izgradiProgozaPodaci(zadnjaSirovaData.hourly, zadnjaSirovaData.daily, zadnjaSirovaData.offsetSekunde);
             izgradiRollerSati();
@@ -1318,30 +1271,17 @@
             const errorBox = document.getElementById('error-box');
             errorBox.style.display = 'none';
 
-            // FIX: cuvamo redni broj ovog zahtjeva. Ako korisnik brzo promijeni
-            // grad (ili klikne GPS pa odmah selektuje drugi grad), stariji fetch
-            // moze teoreticki stici KASNIJE od novijeg (mreza je nepredvidiva).
-            // Bez ove provjere, stariji ("zastarjeli") odgovor bi mogao prepisati
-            // podatke novijeg zahtjeva i prikazati pogresan grad/prognozu.
             zadnjiZahtjevId++;
             const ovajZahtjevId = zadnjiZahtjevId;
 
             try {
-                // FIX: "UV pokazuje 0" - UV indeks u Open-Meteo Forecast API-ju je
-                // izveden iz GFS modela (potvrdio sam ovo iz zvanične Open-Meteo
-                // dokumentacije), a NIJE nativno vezan ni za jedan od naša tri modela
-                // (ICON/ECMWF/ALADIN). Kad se traži sa &models=..., API vjerovatno ne
-                // vraća uv_index sufiksiran tim imenima jer to fizički nije "njihov"
-                // podatak - naš kod bi onda tiho pao na 0 umjesto stvarne vrijednosti.
-                // Zato UV vučemo POSEBNIM, jednostavnim pozivom (bez &models=), gdje je
-                // pouzdano dostupan, i spajamo ga u glavne podatke pod nesufiksiranim
-                // imenom ("uv_index") koje prosjekVrijednosti() već provjerava kao rezervni plan.
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
+                // NADOGRADNJA: Dodan wind_gusts_10m u API poziv kako bismo imali stvarne udare vjetra iz modela
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,pressure_msl,wind_speed_10m,wind_gusts_10m,wind_direction_10m,weather_code,cloud_cover&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=7&models=${MODELI_ZA_PROSJEK.join(',')}`;
                 const uvUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=uv_index&timezone=auto&past_days=1&forecast_days=7`;
 
                 const [res, uvRes] = await Promise.all([fetch(url), fetch(uvUrl).catch(() => null)]);
 
-                if (ovajZahtjevId !== zadnjiZahtjevId) return; // stigao je noviji zahtjev u međuvremenu, ovaj ignorišemo
+                if (ovajZahtjevId !== zadnjiZahtjevId) return;
 
                 if (!res.ok) throw new Error("API odziv nije ispravan");
 
@@ -1351,28 +1291,16 @@
                     try { uvData = await uvRes.json(); } catch (e) { uvData = null; }
                 }
 
-                if (ovajZahtjevId !== zadnjiZahtjevId) return; // provjera i nakon drugog "await" (parsiranje JSON-a)
+                if (ovajZahtjevId !== zadnjiZahtjevId) return;
 
                 if (data && data.hourly && data.daily) {
                     if (uvData && uvData.hourly && uvData.hourly.uv_index) {
                         data.hourly.uv_index = uvData.hourly.uv_index;
                     }
-                    // NAPOMENA/FIX: Open-Meteo (timezone=auto) vraća vrijeme BEZ oznake zone,
-                    // vec u lokalnom vremenu odabrane lokacije. Ranije se "new Date(t)" i
-                    // "new Date()" (uredjaj korisnika) direktno poredilo, sto je tacno SAMO
-                    // ako je vremenska zona uredjaja ista kao zona odabrane lokacije (npr.
-                    // korisnik izvan BiH koristi dugme za GPS lokaciju - bio bi pogresan
-                    // "trenutni sat"). Zato sve API vremenske stringove parsiramo kao UTC
-                    // (dodavanjem 'Z'), a "sada" racunamo koristeci utc_offset_seconds koji
-                    // API vraca za odabranu lokaciju - tako je poredjenje uvijek dosljedno.
                     const offsetSekunde = data.utc_offset_seconds || 0;
 
                     zadnjaSirovaData = { hourly: data.hourly, daily: data.daily, offsetSekunde: offsetSekunde };
 
-                    // FIX: "refresh svaka 3 sata" ne smije neočekivano vratiti korisnika
-                    // na "sada" ako trenutno gleda neki drugi sat (npr. sutrašnju
-                    // prognozu) - sačuvamo njegovu poziciju za tihi (automatski) refresh,
-                    // dok promjena grada i dalje ispravno resetuje na "sada" kao prije.
                     const prethodniIndex = izabraniIndex;
                     prognozaPodaci = izgradiProgozaPodaci(data.hourly, data.daily, offsetSekunde);
 
@@ -1389,504 +1317,11 @@
                     }
                 }
             } catch (err) {
-                if (ovajZahtjevId !== zadnjiZahtjevId) return; // ne prikazuj gresku za zastarjeli zahtjev
+                if (ovajZahtjevId !== zadnjiZahtjevId) return;
                 console.error("Greška pri učitavanju:", err);
                 errorBox.style.display = 'block';
             }
         }
-
-        // Masivna baza od po 50+ probranih, urnebesnih i ugođenih rečenica za svaku kategoriju
-        const bazeRecenica = {
-            "noc_mirno": [
-                "Grad spava, komšijski pas ne laje, a termometar mirno pokazuje ${TEMP}°C.",
-                "Tišina je toliko gusta da čujete vlastite misli - i ${TEMP}°C napolju.",
-                "Mjesec radi noćnu smjenu bez pauze, temperatura mu asistira sa ${TEMP}°C.",
-                "Sve je u redu, ništa se ne dešava - profesionalna mirna noć na ${TEMP}°C.",
-                "Ni jedan list se ne miče, kao da je priroda pritisla pauzu na ${TEMP}°C.",
-                "Zvijezde su izašle na posao, a temperatura im pravi društvo sa ${TEMP}°C.",
-                "Ova noć je toliko dosadna da bi i meteorolog otišao spavati - ${TEMP}°C, kraj priče.",
-                "Ulične mačke su glasale i noć je proglašena mirnom uz ${TEMP}°C.",
-                "Da postoji nagrada za najmirniju noć u regionu, ova bi je pokupila na ${TEMP}°C.",
-                "Vjetar je uzeo slobodan dan, a temperatura drži stanicu na ${TEMP}°C.",
-                "Komšiluk hrče u harmoniji dok vani caruje mir i ${TEMP}°C.",
-                "Ako čekate dramu, nema je - samo miran termometar na ${TEMP}°C.",
-                "Noć je tako tiha da se čuje kako susjed prevrće u snu, uz ${TEMP}°C napolju.",
-                "Sova iznad krova jedina radi noćnu smjenu, vrijeme joj daje ${TEMP}°C.",
-                "Sve zvijezde su na svom mjestu, sve u redu, ${TEMP}°C po planu.",
-                "Ni sat na crkvi ne žuri, a ni termometar - miruje na ${TEMP}°C.",
-                "Ova noć bi mogla poslužiti za reklamu za spavanje, uz ${TEMP}°C.",
-                "Grad diše polako, duboko, na ${TEMP}°C - savršeno za regeneraciju.",
-                "Ništa vas večeras neće probuditi osim možda vlastite savjesti - napolju je ${TEMP}°C.",
-                "Prognoza za noćas: dosadno, mirno, ${TEMP}°C i tačka.",
-                "I meteorolozi ponekad dobiju slobodnu noć - ova je jedna od njih, ${TEMP}°C bez iznenađenja.",
-                "Ulica je prazna kao frižider pred penziju, a napolju ${TEMP}°C.",
-                "Vjetrokaz se dosađuje, ne zna na koju stranu da se okrene pri ${TEMP}°C.",
-                "Sve što se večeras dešava jeste da termometar tiho drži ${TEMP}°C.",
-                "Ova noć zaslužuje medalju za pouzdanost - stabilnih ${TEMP}°C bez greške."
-            ],
-            "noc_vruce": [
-                "Ponoć je, a jastuk je topliji od ringle - vani nemilosrdnih ${TEMP}°C.",
-                "Klima uređaj je podnio ostavku, a napolju i dalje ${TEMP}°C.",
-                "Tropska noć zvanično otvara sezonu preznojavanja uz ${TEMP}°C.",
-                "Čaršav se lijepi za vas kao da je uvrijeđen, a živa stoji na ${TEMP}°C.",
-                "Ventilator samo premješta vruć zrak s jedne strane sobe na drugu - ${TEMP}°C i dalje.",
-                "Sladoled se topi brže nego što stignete da ga pojedete, noćnih ${TEMP}°C u igri.",
-                "Ko večeras zaspi bez klime, taj je ili junak ili u nesvijesti - ${TEMP}°C napolju.",
-                "Balkon je pretvoren u saunu s pogledom, temperatura javlja ${TEMP}°C.",
-                "Komarci rade prekovremeno jer im ova vrelina od ${TEMP}°C savršeno odgovara.",
-                "Frižider je večeras najbolji prijatelj, a napolju vlada ${TEMP}°C.",
-                "I noć je odlučila da se pridruži danu u pečenju - ${TEMP}°C bez pardona.",
-                "Znoj vam curi dok ležite mirno kao statua, zahvaljujući ${TEMP}°C.",
-                "Ova noć bi mogla peći hljeb bez rerne, toliko su ${TEMP}°C ozbiljne.",
-                "San je otkazan zbog više sile zvane vrućina - termometar tvrdoglavo drži ${TEMP}°C.",
-                "Prozori su širom otvoreni, ali zrak se ne zamara hlađenjem - i dalje ${TEMP}°C.",
-                "Vaš madrac je večeras vulkan, a soba je Pompeja pri ${TEMP}°C.",
-                "Čak i mjesec izgleda znojno večeras, dok grad gori na ${TEMP}°C.",
-                "Kupanje u hladnoj vodi prije spavanja postaje nacionalni sport zbog ovih ${TEMP}°C.",
-                "Ledeni čaj je jedina razumna odluka noćas, dok napolju stoji ${TEMP}°C.",
-                "Ova noć se ponaša kao da joj neko duguje pare - nemilosrdnih ${TEMP}°C.",
-                "Grad se pretvorio u veliku saunu bez recepcije, uz ${TEMP}°C.",
-                "Spavaćica je danas suvišna stavka, dovoljno grije i ${TEMP}°C.",
-                "I najtvrđi spavač će se noćas prevrtati - kriva je vrelina od ${TEMP}°C.",
-                "Termometar je zaboravio da je noć, tvrdoglavo drži ${TEMP}°C.",
-                "Ventilatori rade prekovremeno bez naknade, borba protiv ${TEMP}°C traje."
-            ],
-            "noc_kisa": [
-                "Kiša dobuje po krovovima kao da svira solo dionicu, uz ${TEMP}°C.",
-                "Nebo je odlučilo da opere ulice bez najave, temperatura ostaje na ${TEMP}°C.",
-                "Vodoinstalater bi bio ponosan na ovaj protok s neba, uz ${TEMP}°C.",
-                "Kišobran je noćas jedini pravi junak, dok termometar javlja ${TEMP}°C.",
-                "Vani pljušti kao da priroda plaća neki dug, temperatura ${TEMP}°C.",
-                "Kanalizacija radi prekovremeno zbog ovog noćnog tuša od ${TEMP}°C.",
-                "Kap po kap, kao da neko gore broji sitniš - napolju ${TEMP}°C.",
-                "Prozori plaču zajedno s nebom, dok je vani ${TEMP}°C.",
-                "Ovo je noć za dobru knjigu i zvuk kiše, uz ${TEMP}°C napolju.",
-                "Ulice su se pretvorile u ogledala od kiše, temperatura miruje na ${TEMP}°C.",
-                "Neko gore je otvorio sve slavine odjednom - napolju ${TEMP}°C.",
-                "Kišne kapi kucaju na prozor kao neuljudan komšija, uz ${TEMP}°C.",
-                "Vlažnost je danas glavna zvijezda večeri, uz ${TEMP}°C.",
-                "Svaka bara večeras je mali bazen, a termometar stoji na ${TEMP}°C.",
-                "Nebo plače, a mi samo nadamo se da će sutra biti bolje - ${TEMP}°C sada.",
-                "Kiša pada uporno kao da ima rok za izvršenje plana, uz ${TEMP}°C.",
-                "Krovovi trpe pravi noćni koncert kapljica, dok je vani ${TEMP}°C.",
-                "Odvodi rade prekovremeno bez sindikalne pauze, uz ${TEMP}°C.",
-                "Ovo je noć kad kišobran postaje najvažniji predmet u kući, ${TEMP}°C napolju.",
-                "Sve zvuči prigušeno pod ovom kišom, temperatura javlja ${TEMP}°C.",
-                "Ulice sjaje od vlage pod svjetlima, dok termometar drži ${TEMP}°C.",
-                "Ako čujete šuštanje, to je kiša koja radi svoj posao pri ${TEMP}°C.",
-                "Kišna zavjesa je prekrila grad, temperatura ostaje mirna na ${TEMP}°C.",
-                "Svaki oluk večeras ima šta da priča, uz ${TEMP}°C u zraku.",
-                "Vlaga se uvukla u sve pore grada, dok je vani ${TEMP}°C."
-            ],
-            "oblacno": [
-                "Sunce je danas na bolovanju, a oblaci preuzimaju smjenu uz ${TEMP}°C.",
-                "Nebo je navuklo sivi veš na cijeli grad, temperatura javlja ${TEMP}°C.",
-                "Oblaci su se dogovorili da danas ne puste nijedan sunčev zrak, uz ${TEMP}°C.",
-                "Danas je nebo u boji betona, a termometar pokazuje ${TEMP}°C.",
-                "Sunčane naočale mogu ostati u ladici, oblaci su preuzeli vlast na ${TEMP}°C.",
-                "Sivilo se raširilo od horizonta do horizonta, uz ugodnih ${TEMP}°C.",
-                "Nebo izgleda kao da se predomišlja hoće li kišiti, za sad samo oblačno na ${TEMP}°C.",
-                "Sunce šalje izvinjenje preko oblaka, a napolju je ${TEMP}°C.",
-                "Dan je siv kao ponedjeljak, temperatura ipak drži ${TEMP}°C.",
-                "Oblaci su organizovali potpunu blokadu neba, uz ${TEMP}°C na zemlji.",
-                "Nebo se pretvorilo u veliki sivi čaršav, dok je napolju ${TEMP}°C.",
-                "Fotografije danas ispadaju bez sjenki - hvala oblacima - uz ${TEMP}°C.",
-                "Sunčeva svjetlost je danas samo glasina, temperatura ostaje ${TEMP}°C.",
-                "Nebo je zaključalo sunce u podrum, napolju je ${TEMP}°C.",
-                "Oblaci vise nisko poput lošeg raspoloženja, uz ${TEMP}°C.",
-                "Dan bez sjenki, dan bez sunca, ali uz solidnih ${TEMP}°C.",
-                "Sivi filter je postavljen preko cijelog neba, temperatura javlja ${TEMP}°C.",
-                "Ni zraka sunca danas, samo debeo sloj oblaka i ${TEMP}°C.",
-                "Nebo je odlučilo da danas nosi jedino sivu boju, uz ${TEMP}°C.",
-                "Oblaci su čvrsto zatvorili roletne neba, dok je vani ${TEMP}°C.",
-                "Sunce postoji, samo mu neko nije poslao pozivnicu danas - ${TEMP}°C u međuvremenu.",
-                "Nebo podsjeća na staru fotografiju u sepiji, uz ${TEMP}°C.",
-                "Sivi pokrivač preko grada, ali bar bez kiše - ${TEMP}°C napolju.",
-                "Danas nema plavog neba, samo debeli oblaci i ${TEMP}°C.",
-                "Meteorolozi kažu oblačno, mi kažemo - sunce je na godišnjem, uz ${TEMP}°C."
-            ],
-            "led_i_snijeg": [
-                "Snijeg pada kao da ima plan da zatrpa cijeli grad, uz ${TEMP}°C duboko u minusu.",
-                "Ulice su se pretvorile u klizalište bez naplate karata, na ${TEMP}°C.",
-                "Auta su danas skije, ne vozila - poledica vlada uz ${TEMP}°C.",
-                "Snjegovi padaju k'o da im plaćaju po pahulji, termometar pokazuje ${TEMP}°C.",
-                "Nos vam se smrznuo prije nego što ste izašli iz kuće, na ${TEMP}°C.",
-                "Poledica je danas glavna atrakcija grada, uz surovih ${TEMP}°C.",
-                "Snjegović bi se osjećao kao kod kuće u ovih ${TEMP}°C.",
-                "Vaš dah se pretvara u oblak čim izađete, na ${TEMP}°C.",
-                "Ceste su klizave kao politički obećanja, uz ${TEMP}°C i snijeg.",
-                "Snijeg škripi pod nogama glasnije od komšijskih rasprava, na ${TEMP}°C.",
-                "Termometar je otišao duboko u minus i ne planira se vratiti - ${TEMP}°C.",
-                "Ledena kiša lakira sve što stoji na ulici, uz ${TEMP}°C.",
-                "Šoferšajbne su se pretvorile u umjetnička djela od inja, na ${TEMP}°C.",
-                "Snijeg pokriva grad kao veliki bijeli pokrivač, uz ${TEMP}°C.",
-                "Zubi cvokoću u ritmu vjetra, dok termometar drži ${TEMP}°C.",
-                "Grijanje radi na puni pogon, a napolju vlada ${TEMP}°C i snijeg.",
-                "Ulična svjetla se odbijaju od poledice kao mali diskotečni efekti, uz ${TEMP}°C.",
-                "Danas je idealan dan da ostanete pod dekom - vani je ${TEMP}°C i pada snijeg.",
-                "Pahulje padaju u paradnom stroju, temperatura javlja ${TEMP}°C.",
-                "Vaš auto je večeras oklopljen ledom debljine prstiju, na ${TEMP}°C.",
-                "Snijeg je pokrio i onu jednu klupu u parku, uz ${TEMP}°C.",
-                "Termometar se smrznuo u mjestu na ${TEMP}°C, kao i sve ostalo.",
-                "Snijeg pada gušće nego opravdanja za kašnjenje na posao, uz ${TEMP}°C.",
-                "Ledeni sloj na trotoarima traži ozbiljnu koncentraciju pri hodu, na ${TEMP}°C.",
-                "Zima je ozbiljno zasukala rukave - ${TEMP}°C i snijeg do koljena, otprilike."
-            ],
-            "mraz": [
-                "Trava je preko noći dobila bijelu perika od inja, uz ${TEMP}°C.",
-                "Šoferšajbna traži struganje prije nego išta drugo - napolju je ${TEMP}°C.",
-                "Vazduh je oštar kao komšijska primjedba, temperatura pokazuje ${TEMP}°C.",
-                "Mraz je preko noći ukrasio sve ograde, dok je vani ${TEMP}°C.",
-                "Dah vam izlazi u oblačićima kao da pušite, na ${TEMP}°C.",
-                "Nebo je vedro, ali zrak grize - termometar stoji na ${TEMP}°C.",
-                "Klupe u parku su prekrivene tankim slojem leda, uz ${TEMP}°C.",
-                "Prsti se smrzavaju čim izađu iz džepa, na ${TEMP}°C.",
-                "Jutarnji mraz je stigao tiho, bez najave, uz ${TEMP}°C.",
-                "Vedra i hladna noć/jutro - savršeno za inje i ${TEMP}°C.",
-                "Auto neće da upali od hladnoće, a napolju je ${TEMP}°C.",
-                "Rosa se smrzla prije nego što je stigla da padne, uz ${TEMP}°C.",
-                "Zrak je čist kao suza, ali i hladan kao ova ${TEMP}°C.",
-                "Ledeni sloj prekriva sve krovove, dok zvijezde svijetle iznad ${TEMP}°C.",
-                "Termometar tiho i uporno drži ${TEMP}°C, bez namjere da popusti.",
-                "Nos vam se crveni prije nego stignete do kraja ulice, na ${TEMP}°C.",
-                "Inje je pokrilo sve, od automobila do klupa, uz ${TEMP}°C.",
-                "Vedro nebo, oštar zrak, i tvrdoglavih ${TEMP}°C.",
-                "Ova hladnoća se uvlači ispod jakne bez pitanja, na ${TEMP}°C.",
-                "Prozori kuća su ukrašeni ledenim šarama, temperatura javlja ${TEMP}°C.",
-                "Mraz grize obraze čim otvorite vrata, uz ${TEMP}°C.",
-                "Zvijezde su oštre kao igle, a napolju je hladnih ${TEMP}°C.",
-                "Trotoar je posut sitnim kristalima leda, na ${TEMP}°C.",
-                "Ruke traže rukavice čim osjete ovih ${TEMP}°C.",
-                "Vedrina neba ne popravlja hladnoću - i dalje je ${TEMP}°C."
-            ],
-            "magla": [
-                "Vidljivost je danas na nivou lošeg predosjećaja, uz ${TEMP}°C u magli.",
-                "Grad je nestao u bijelom pokrivaču, temperatura javlja ${TEMP}°C.",
-                "Magla je progutala sve zgrade iznad drugog sprata, uz ${TEMP}°C.",
-                "Vozite kao da igrate slijepog miša, magla drži ${TEMP}°C.",
-                "Susjedna zgrada je danas samo legenda, magla vlada uz ${TEMP}°C.",
-                "Sve izgleda kao scena iz horor filma, uz maglovitih ${TEMP}°C.",
-                "Vidite jedva do kraja svoje ruke, magla i ${TEMP}°C napolju.",
-                "Grad je umotan u vatu, a termometar pokazuje ${TEMP}°C.",
-                "Farovi na autima probijaju maglu kao svjetiljke u pećini, uz ${TEMP}°C.",
-                "Sve konture su izbrisane, ostaje samo ${TEMP}°C i bjelina.",
-                "Magla se uvukla u svaku ulicu kao neželjeni gost, uz ${TEMP}°C.",
-                "Danas se ni ptice ne snalaze najbolje, magla i ${TEMP}°C.",
-                "Vidljivost je smanjena na dužinu jedne ulice, uz ${TEMP}°C.",
-                "Sve je sivo-bijelo i pomalo misteriozno, temperatura javlja ${TEMP}°C.",
-                "Krovovi kuća plutaju iznad magle kao ostrva, uz ${TEMP}°C.",
-                "Magla guta zvukove isto kao i pogled, dok je vani ${TEMP}°C.",
-                "Ovo je idealan dan za avanturu bez GPS-a, magla i ${TEMP}°C.",
-                "Ulična svjetla se bore s maglom i uglavnom gube, uz ${TEMP}°C.",
-                "Vidljivost danas mjerimo u metrima, ne u kilometrima - ${TEMP}°C napolju.",
-                "Sve što je dalje od pet metara postaje nagađanje, uz ${TEMP}°C.",
-                "Magla se šulja niskim ulicama kao tihi agent, temperatura ${TEMP}°C.",
-                "Grad diše paru koja se ne razilazi, uz ${TEMP}°C.",
-                "Danas je čak i poznati put pun iznenađenja, magla i ${TEMP}°C.",
-                "Sve zgrade su danas na skraćenom radnom vremenu za oči, uz ${TEMP}°C.",
-                "Magla ne pita za dozvolu, samo se raširi - ${TEMP}°C u pozadini."
-            ],
-            "vjetrovito": [
-                "Vjetar danas nosi sve što nije čvrsto pričvršćeno, uz ${TEMP}°C.",
-                "Kišobrani se okreću naopako čim ih otvorite, vjetar i ${TEMP}°C.",
-                "Kosa je danas potpuno van kontrole, hvala vjetru pri ${TEMP}°C.",
-                "Kante za smeće trkaju ulicom brže od trkača, uz ${TEMP}°C.",
-                "Vjetar zviždi kroz prozore kao da ima nešto da kaže, na ${TEMP}°C.",
-                "Drveće se savija kao da vježba jogu, uz vjetrovitih ${TEMP}°C.",
-                "Šeširi lete bez pitanja vlasnika, vjetar radi svoje pri ${TEMP}°C.",
-                "Danas je hodanje pravo ravno pravi sportski izazov, uz ${TEMP}°C.",
-                "Vjetar gura leđa kao nestrpljiv komšija, temperatura ${TEMP}°C.",
-                "Zastave pucketaju na vjetru kao aplauz, uz ${TEMP}°C.",
-                "Sve što nije zavareno danas putuje ulicom, vjetar i ${TEMP}°C.",
-                "Vrata se sama zatvaraju uz tresak, hvala jakom vjetru pri ${TEMP}°C.",
-                "Vjetar duva kao da žuri negdje, uz ${TEMP}°C u zraku.",
-                "Kosa i papiri danas imaju svoju volju, vjetrovito je i ${TEMP}°C.",
-                "Prozori podrhtavaju od naleta vjetra, temperatura javlja ${TEMP}°C.",
-                "Danas je nemoguće držati kišobran uspravno, vjetar vlada uz ${TEMP}°C.",
-                "Drveće šapuće glasnije nego inače zbog vjetra, uz ${TEMP}°C.",
-                "Vjetar nosi mirise sa svih strana grada odjednom, na ${TEMP}°C.",
-                "Balkonsko cvijeće danas radi akrobacije, vjetrovito i ${TEMP}°C.",
-                "Vjetar gura automobile u stranu na otvorenom putu, uz ${TEMP}°C.",
-                "Antene i satelitske tanjire danas ozbiljno strada testiraju, uz ${TEMP}°C.",
-                "Vjetar fućka kroz sokake kao neko ko se dosađuje, na ${TEMP}°C.",
-                "Sve zastave u gradu su danas u punom pogonu, uz ${TEMP}°C.",
-                "Vjetar je danas glavni DJ, mijenja ritam ulici na ${TEMP}°C.",
-                "Kosa frizura traje tačno dok ne izađete napolje, uz vjetrovitih ${TEMP}°C."
-            ],
-            "jutro_mirno": [
-                "Kafa se puši, grad se budi, a napolju je ugodnih ${TEMP}°C.",
-                "Prvi zraci sunca se protežu kao i mi, uz ${TEMP}°C.",
-                "Jutro počinje mirno, bez drame, uz ${TEMP}°C na termometru.",
-                "Ptice pjevaju svoju jutarnju smjenu, temperatura javlja ${TEMP}°C.",
-                "Grad se polako pali kao stara sijalica, uz ${TEMP}°C.",
-                "Miris svježe kafe i jutarnjih ${TEMP}°C ispunjava vazduh.",
-                "Sunce izlazi bez žurbe, a napolju je prijatnih ${TEMP}°C.",
-                "Prvi tramvaj kreće u tišini jutra od ${TEMP}°C.",
-                "Jutro je čisto i mirno kao prazan list papira, uz ${TEMP}°C.",
-                "Rosa se sjaji na travi dok je vani ${TEMP}°C.",
-                "Idealno jutro za polagan početak dana, uz ${TEMP}°C.",
-                "Sunčeva svjetlost se lagano probija kroz zavjese, na ${TEMP}°C.",
-                "Grad diše polako u ritmu jutra od ${TEMP}°C.",
-                "Prvi komšija izvodi psa, jutro je mirno na ${TEMP}°C.",
-                "Ulice su još poluprazne, a jutro nudi ${TEMP}°C.",
-                "Budilnik je zvonio, ali jutro nagrađuje sa ${TEMP}°C napolju.",
-                "Sunčeva zraka pada na sto za doručak, uz ${TEMP}°C.",
-                "Jutro obećava miran dan uz svojih ${TEMP}°C.",
-                "Prvi gutljaj kafe uz pogled kroz prozor na ${TEMP}°C.",
-                "Grad se protegao i otvorio oči na ${TEMP}°C.",
-                "Jutarnji vazduh je svjež i čist, uz ${TEMP}°C.",
-                "Tišina jutra prekida se tek pokojim koracima, na ${TEMP}°C.",
-                "Sve djeluje novo i sređeno u ovo jutro od ${TEMP}°C.",
-                "Sunce polako pali grad kao lampu, uz ${TEMP}°C.",
-                "Doručak miriše, jutro je mirno, napolju ${TEMP}°C."
-            ],
-            "jutro_vruce": [
-                "Već u sedam ujutro znojite se kao da je podne, uz ${TEMP}°C.",
-                "Jutro je toplo kao da je preskočilo doručak i otišlo pravo na ručak - ${TEMP}°C.",
-                "Kafa se pije uz ventilator već ovako rano, na ${TEMP}°C.",
-                "Sunce je krenulo puno gas od samog izlaska, uz ${TEMP}°C.",
-                "Majica se lijepi za leđa i prije nego stignete do posla, ${TEMP}°C napolju.",
-                "Jutarnja žega ne poznaje pardon, termometar javlja ${TEMP}°C.",
-                "Klima se pali odmah po buđenju, uz jutarnjih ${TEMP}°C.",
-                "Sunce je danas stiglo na posao ranije nego vi, uz ${TEMP}°C.",
-                "Ledena voda je jutros prioritet broj jedan, na ${TEMP}°C.",
-                "Vazduh je gust i topao već u zoru, uz ${TEMP}°C.",
-                "Prva stvar ujutro nije kafa nego ventilator, zbog vrućine od ${TEMP}°C.",
-                "Jutro miriše na asfalt koji se već grije, uz ${TEMP}°C.",
-                "I sjenka danas traži hlad, toliko su ${TEMP}°C ozbiljne.",
-                "Ranoranioci danas plaćaju cijenu vrućine od ${TEMP}°C.",
-                "Sunčane naočale su obavezne već pri doručku, uz ${TEMP}°C.",
-                "Jutarnja šetnja pretvara se u malu saunu na ${TEMP}°C.",
-                "Termometar je preskočio uvod i odmah krenuo ozbiljno - ${TEMP}°C.",
-                "Već ranom zorom osjeti se da će dan biti pečenje, uz ${TEMP}°C.",
-                "Sunce grije kao da nadoknađuje propušteno, na ${TEMP}°C.",
-                "Ventilator radi prekovremeno već od buđenja, zbog ovih ${TEMP}°C.",
-                "Jutro je vruće poput podnevnog sunca, termometar javlja ${TEMP}°C.",
-                "Prvi znoj dana stiže prije prvog gutljaja kafe, na ${TEMP}°C.",
-                "Sunce se nije ni potpuno probudilo, a već grije na ${TEMP}°C.",
-                "Vrelina je stigla ranije od alarma, uz ${TEMP}°C u zraku.",
-                "Već u ranu zoru osjeća se ljetna žega od ${TEMP}°C."
-            ],
-            "jutro_kisa": [
-                "Kišobran je jutros vazan kao lične karte, uz ${TEMP}°C.",
-                "Kiša budi grad umjesto budilnika, temperatura javlja ${TEMP}°C.",
-                "Prvi koraci jutros su uz zvuk kapljica na ${TEMP}°C.",
-                "Autobuska stanica jutros miriše na mokar beton, uz ${TEMP}°C.",
-                "Kiša se pridružila jutarnjoj gužvi bez pitanja, na ${TEMP}°C.",
-                "Kaljuže na putu do posla su danas neizbježne, uz ${TEMP}°C.",
-                "Kišobran se otvara prije nego što stignete do vrata, na ${TEMP}°C.",
-                "Jutarnja kiša pere ulice prije prve gužve, uz ${TEMP}°C.",
-                "Prozori automobila jutros rade dvostruko brišući kišu, ${TEMP}°C napolju.",
-                "Cipele će jutros biti mokre bez obzira na trud, uz ${TEMP}°C.",
-                "Kiša kuca na prozor umjesto alarma, temperatura ${TEMP}°C.",
-                "Jutarnji vazduh miriše na svježinu i kišu, uz ${TEMP}°C.",
-                "Kišobran postaje jutros produžetak ruke, na ${TEMP}°C.",
-                "Ulice sjaje od jutarnje kiše, dok je vani ${TEMP}°C.",
-                "Kaplje kucaju po prozoru dok se spremate za posao, uz ${TEMP}°C.",
-                "Jutros je nebo odlučilo da opere grad prije doručka, na ${TEMP}°C.",
-                "Kiša prati svaki korak do stanice, uz ${TEMP}°C.",
-                "Jutarnja gužva je danas dodatno mokra, temperatura ${TEMP}°C.",
-                "Kišobran vam je jutros vjerniji od budilnika, uz ${TEMP}°C.",
-                "Nebo je sivo, a kiša uporna već od zore, na ${TEMP}°C.",
-                "Svaka lokva na putu danas nosi svoju priču, uz ${TEMP}°C.",
-                "Jutarnja kiša tjera sve pod kišobrane i nadstrešnice, na ${TEMP}°C.",
-                "Kiša otvara dan bez pitanja za dozvolu, uz ${TEMP}°C.",
-                "Vlaga se osjeti u zraku već pri prvom koraku, na ${TEMP}°C.",
-                "Jutros je za suhe cipele potrebna prava vještina, uz ${TEMP}°C."
-            ],
-            "dan_mirno": [
-                "Dan teče glatko kao dobro ispričan vic, uz ${TEMP}°C.",
-                "Sunce sija umjereno, kao da pazi na potrošnju, uz ${TEMP}°C.",
-                "Savršen dan za sve i ništa posebno, termometar javlja ${TEMP}°C.",
-                "Grad radi svojim tempom, uz ugodnih ${TEMP}°C napolju.",
-                "Nebo je vedro, a raspoloženje generalno dobro, uz ${TEMP}°C.",
-                "Dan bez iznenađenja, baš kako volimo, na ${TEMP}°C.",
-                "Sve je pod kontrolom - i vrijeme i ${TEMP}°C.",
-                "Ovo je dan za šetnju bez plana, uz prijatnih ${TEMP}°C.",
-                "Ni vruće ni hladno, baš kako treba - ${TEMP}°C danas.",
-                "Dan je stabilan kao dobar wifi signal, uz ${TEMP}°C.",
-                "Sunce se ponaša primjereno, ni previše ni premalo, uz ${TEMP}°C.",
-                "Savršeno vrijeme za kafu na terasi, termometar javlja ${TEMP}°C.",
-                "Dan protiče bez drame, uz mirnih ${TEMP}°C.",
-                "Grad diše normalno, tempo dana je ${TEMP}°C.",
-                "Ovo je taj rijetki dan kad se niko ne žali na vrijeme - ${TEMP}°C.",
-                "Umjerena temperatura i mirno nebo, uz ${TEMP}°C danas.",
-                "Dan je kao topla čorba - baš taman, uz ${TEMP}°C.",
-                "Sve funkcioniše po planu, uključujući i ${TEMP}°C napolju.",
-                "Nebo je čisto, raspoloženje odlično, uz ${TEMP}°C.",
-                "Dan bez potrebe za kišobranom ili jaknom, uz ${TEMP}°C.",
-                "Ovo vrijeme zaslužuje pet zvjezdica, uz ${TEMP}°C.",
-                "Savršena ravnoteža danas - ni ekstrem, ni dosada, uz ${TEMP}°C.",
-                "Dan koji ne traži ništa od vas, uz ${TEMP}°C napolju.",
-                "Sunce grije baš dovoljno, ni manje ni više, uz ${TEMP}°C.",
-                "Ovakav dan bi trebalo flaširati i prodavati, uz ${TEMP}°C."
-            ],
-            "dan_vruce": [
-                "Asfalt se topi, a s njim i vaše planove za danas, uz ${TEMP}°C.",
-                "Sunce je danas na maksimalnoj snazi, termometar javlja ${TEMP}°C.",
-                "Sladoled se topi brže nego što stignete platiti, uz ${TEMP}°C.",
-                "Hlad je danas najtraženija nekretnina u gradu, na ${TEMP}°C.",
-                "Klima je danas najvažniji uređaj u kući, zbog ovih nemilosrdnih ${TEMP}°C.",
-                "Sunčane naočale i voda su jedini pravi saveznici, uz ${TEMP}°C.",
-                "Vazduh treperi od vrućine iznad asfalta, termometar javlja ${TEMP}°C.",
-                "Danas se sve odvija sporije zbog ozbiljnih ${TEMP}°C.",
-                "Sunce prži kao da ima nešto lično protiv nas, uz ${TEMP}°C.",
-                "Bazeni su danas najbolja adresa u gradu, zbog vrućine od ${TEMP}°C.",
-                "Sjenka drveta danas vrijedi više od bilo koje klupe, uz ${TEMP}°C.",
-                "Termometar je ozbiljno preterao danas - ${TEMP}°C bez milosti.",
-                "Voda se pije brže nego što stiže iz česme, uz ${TEMP}°C.",
-                "Danas je čak i hlad relativan pojam, zbog ovih ${TEMP}°C.",
-                "Sunce diktira tempo cijelog grada, uz ${TEMP}°C.",
-                "Sladoledžije danas rade najbolji posao u gradu, zbog vrućine od ${TEMP}°C.",
-                "Vrelina se osjeti čim koraknete napolje, termometar javlja ${TEMP}°C.",
-                "Ovo je dan za ostati u hladu i sanjati zimu, uz ${TEMP}°C.",
-                "Asfalt bi mogao pržiti jaje, toliko su ${TEMP}°C ozbiljne.",
-                "Sunce ne poznaje pauzu danas, uz nemilosrdnih ${TEMP}°C.",
-                "Ventilatori u prodavnicama su danas rasprodani, zbog ovih ${TEMP}°C.",
-                "Vrućina pritiska grad kao teški pokrivač, uz ${TEMP}°C.",
-                "Danas je bolje ne planirati ništa prije 18h, zbog ovih ${TEMP}°C.",
-                "Termometar se penje bez namjere da stane, na ${TEMP}°C.",
-                "I sjena danas traži sjenu, toliko su ${TEMP}°C nemilosrdne."
-            ],
-            "dan_kisa": [
-                "Kiša je odlučila da pokvari sve planove za danas, uz ${TEMP}°C.",
-                "Kišobran je danas najvažniji modni dodatak, na ${TEMP}°C.",
-                "Ulice su se pretvorile u male rijeke, termometar javlja ${TEMP}°C.",
-                "Kaplje bubnjaju po krovovima cijeli dan, uz ${TEMP}°C.",
-                "Danas je dan za čaj, ćebe i zvuk kiše, na ${TEMP}°C.",
-                "Kiša pere prašinu s cijelog grada, uz ${TEMP}°C.",
-                "Svaka lokva danas ima svog vjernog skakača, na ${TEMP}°C.",
-                "Kišobrani su danas u punom pogonu širom grada, uz ${TEMP}°C.",
-                "Nebo je otvorilo sve slavine odjednom, termometar javlja ${TEMP}°C.",
-                "Danas je bolje planirati unutra nego napolju, zbog kiše i temperature od ${TEMP}°C.",
-                "Kiša pravi ritam na svakom krovu u gradu, uz ${TEMP}°C.",
-                "Cipele će danas definitivno biti mokre, na ${TEMP}°C.",
-                "Vlaga se osjeti u svakom udahu danas, uz ${TEMP}°C.",
-                "Kišobran se okreće naopako čim izađete, na ${TEMP}°C.",
-                "Danas je nebo sivo i uporno u svojoj odluci da kiši, uz ${TEMP}°C.",
-                "Kaljuže su danas glavna prepreka na ulici, termometar javlja ${TEMP}°C.",
-                "Kiša drži grad pod kontrolom cijeli dan, uz ${TEMP}°C.",
-                "Ovo je dan kad kišobran zaslužuje povišicu, na ${TEMP}°C.",
-                "Vodeni tragovi ostaju posvuda gdje prođete, uz ${TEMP}°C.",
-                "Kiša ne pita za dozvolu, samo pada - uz ${TEMP}°C.",
-                "Danas je idealan izgovor za ostanak u pidžami, zbog kiše i ovih ${TEMP}°C.",
-                "Ulice sjaje od kiše cijelo popodne, uz ${TEMP}°C.",
-                "Kiša svira svoju pjesmu na svakom prozoru, termometar javlja ${TEMP}°C.",
-                "Danas je dan za gumene čizme, ne za sandale, uz ${TEMP}°C.",
-                "Kiša pada uporno kao da ima cijeli dan na raspolaganju, uz ${TEMP}°C."
-            ],
-            "tri_sata_saljivo": [
-                "Iduća 3 sata donose isto što i sada - mirnoću i ${TEMP}°C.",
-                "Ništa dramatično na vidiku sljedeća 3 sata, samo ${TEMP}°C.",
-                "Sljedeća tri sata su rezervisana za dosadu i ${TEMP}°C.",
-                "Vrijeme se odlučilo za odmor - iduća 3 sata mirnih ${TEMP}°C.",
-                "Termometar planira ostati na ${TEMP}°C sljedeća tri sata.",
-                "Iduća 3 sata prognoza glasi: sve po starom, ${TEMP}°C.",
-                "Ništa se ne mijenja narednih sat vremena, tri puta - ${TEMP}°C.",
-                "Sljedeća tri sata su savršena za bilo šta osim brige o vremenu, uz ${TEMP}°C.",
-                "Prognoza za naredna 3 sata: bez iznenađenja, ${TEMP}°C i mir.",
-                "Vrijeme se javlja iz istog mjesta narednih sati - ${TEMP}°C.",
-                "Iduća tri sata su toliko mirna da bi mogla poslužiti za meditaciju, uz ${TEMP}°C.",
-                "Ništa novo pod suncem sljedeća tri sata, osim ${TEMP}°C.",
-                "Termometar se zaklinje da neće bježati sljedeća 3 sata - ostaje na ${TEMP}°C.",
-                "Sljedeći sati donose isti scenario: mirno i ${TEMP}°C.",
-                "Iduća 3 sata prolaze bez drame, uz stabilnih ${TEMP}°C.",
-                "Vrijeme je odlučilo da se ne trudi previše sljedeća tri sata - ${TEMP}°C.",
-                "Naredna tri sata su kopija ovog trenutka, uz ${TEMP}°C.",
-                "Ništa se ne sprema sljedeća 3 sata osim možda dosade, na ${TEMP}°C.",
-                "Prognoza za iduća tri sata: sve isto, ${TEMP}°C bez promjene.",
-                "Sljedeći sati teku mirno kao rijeka bez struje, uz ${TEMP}°C."
-            ],
-            "aktivnost_rostilj": [
-                "Vrijeme je k'o stvoreno za roštilj, šetnju ili pranje auta – iskoristite dok se oblaci ne predomisle!",
-                "Roštilj se pali, susjed već njuška miris preko ograde – iskoristite ovaj dan do kraja!",
-                "Idealan dan za pranje auta, jer će za sat vremena opet biti prašnjavo, ali vrijedi pokušati!",
-                "Šetnja, kafa na terasi ili roštilj - birajte, danas prolazi sve!",
-                "Ovakvi dani se ne propuštaju - napolje, na sunce, uz miris s roštilja!",
-                "Danas je dan za dvorište, mangal i dobro društvo - vrijeme ne postavlja pitanja.",
-                "Iskoristite dan dok traje - roštilj, šetnja pored rijeke ili samo ljenčarenje u dvorištu.",
-                "Sunce zove, mangal čeka - ovo je taj dan kad se sve poklopi."
-            ],
-            "aktivnost_pecanje": [
-                "Rijeka zove, idealan trenutak za zabacivanje štapa i bijeg u prirodu!",
-                "Ribe danas ne slute ništa - savršen dan za pecanje i mir pored vode.",
-                "Štap, čamac i termos kafe - ovo je dan za pecaroše.",
-                "Priroda zove glasnije nego inače - pravo vrijeme za izlet ili pecanje.",
-                "Idealni uslovi za dan pored vode, s pecaroškim štapom ili bez njega.",
-                "Danas je red za obalu rijeke, tišinu i, ako se posreći, koju ribu.",
-                "Vrijeme baš pogoduje bijegu iz grada - jezero ili rijeka čekaju."
-            ],
-            "aktivnost_vjetar": [
-                "Manite se radova na visini danas, vjetar nosi sve pred sobom.",
-                "Ljestve, krovovi i antene neka danas pričekaju - vjetar ne prašta greške.",
-                "Ako planirate nešto na visini, danas nije taj dan - vjetar odlučuje umjesto vas.",
-                "Kišobran ostavite kod kuće, a radove na krovu odgodite za mirniji dan.",
-                "Vjetar danas ozbiljno radi svoje - sve što nije pričvršćeno, bolje pričvrstite dvaput."
-            ],
-            "aktivnost_kisa": [
-                "Topli čaj, kauč i dobar film – najbolje što možete uraditi dok kiša bubnja.",
-                "Danas je dan za unutra - čaj, ćebe i serija koju odavno odgađate.",
-                "Kiša daje savršen izgovor da ostanete u pidžami do popodneva.",
-                "Vani pljušti, unutra miriše kafa - jasno je gdje je bolje provesti dan.",
-                "Odložite planove za napolje, kiša danas nema namjeru popustiti.",
-                "Idealan dan za knjigu, čaj i zvuk kiše na prozoru."
-            ],
-            "3dana_kisa": [
-                "Naredna 3 dana donose promjenjivo vrijeme s kišom - noću oko ${MIN}°C, danju do ${MAX}°C.",
-                "Kišobran ostaje uz vas naredna 3 dana - temperature se kreću od ${MIN}°C noću do ${MAX}°C danju.",
-                "Tri dana s povremenom kišom su pred nama, uz noćnih ${MIN}°C i dnevnih do ${MAX}°C.",
-                "Nestabilno i kišovito narednih 71 sat - okvirno od ${MIN}°C do ${MAX}°C.",
-                "Spremite kišobran za naredna 3 dana, temperature variraju od ${MIN}°C do ${MAX}°C."
-            ],
-            "3dana_kisa_kasnije": [
-                "Sutra i prekosutra ostaje mirno, ali kiša stiže krajem trodnevnog perioda - temperature od ${MIN}°C do ${MAX}°C.",
-                "Za kišobran još nema žurbe - stabilno do kraja perioda, kad se najavljuje kiša, uz ${MIN}°C do ${MAX}°C.",
-                "Naredna dva dana mirno, a onda kiša na vidiku - raspon temperatura ${MIN}°C do ${MAX}°C.",
-                "Prva dva dana bez drame, kiša se javlja tek pred kraj trodnevnog perioda - ${MIN}°C do ${MAX}°C.",
-                "Sutra i prekosutra suho, kiša čeka svoj red kasnije u periodu - temperature ${MIN}°C do ${MAX}°C."
-            ],
-            "3dana_snijeg": [
-                "Naredna 3 dana donose snijeg - noću oko ${MIN}°C, danju tek do ${MAX}°C.",
-                "Zima pokazuje zube naredna 3 dana - snijeg i temperature od ${MIN}°C do ${MAX}°C.",
-                "Tri dana pod snijegom su pred nama, uz noćnih ${MIN}°C i dnevnih do ${MAX}°C.",
-                "Pripremite lopate za snijeg - naredna 3 dana donose ${MIN}°C do ${MAX}°C uz padavine.",
-                "Bijelo se sprema narednih dana - temperature od ${MIN}°C do ${MAX}°C uz snijeg."
-            ],
-            "3dana_snijeg_kasnije": [
-                "Sutra i prekosutra bez snijega, stiže tek krajem trodnevnog perioda - temperature ${MIN}°C do ${MAX}°C.",
-                "Prva dva dana mirno, snijeg se najavljuje kasnije u periodu - ${MIN}°C do ${MAX}°C.",
-                "Lopate još mogu pričekati - snijeg dolazi tek pred kraj perioda, uz ${MIN}°C do ${MAX}°C.",
-                "Naredna dva dana suho, bijelo se sprema tek kasnije - raspon ${MIN}°C do ${MAX}°C."
-            ],
-            "3dana_vruce": [
-                "Naredna 3 dana ostaju stabilna, ali i ekstremno vruća - danju i do ${MAX}°C, noću tek oko ${MIN}°C, klima ostaje glavna tema.",
-                "Toplotni talas se ne predaje naredna 3 dana - dnevnih do ${MAX}°C, noćnih oko ${MIN}°C.",
-                "Tri dana pečenja su pred nama, stabilno i nemilosrdno vruće: ${MIN}°C do ${MAX}°C.",
-                "Sunčane naočale i voda ostaju obavezni narednih 71 sat - do ${MAX}°C danju, ${MIN}°C noću.",
-                "Vrelina se učvrstila na naredna 3 dana - stabilno, ali surovo, od ${MIN}°C do ${MAX}°C."
-            ],
-            "3dana_hladno": [
-                "Naredna 3 dana donose stabilno, ali hladno vrijeme - danju do ${MAX}°C, noću i do ${MIN}°C, jakna ostaje obavezna.",
-                "Zima se ozbiljno učvrstila narednih 71 sat - dnevnih tek ${MAX}°C, noćnih oko ${MIN}°C.",
-                "Tri hladna dana su pred nama, stabilno, ali bez topline: ${MIN}°C do ${MAX}°C.",
-                "Termometar ostaje nisko naredna 3 dana - od ${MIN}°C noću do svega ${MAX}°C danju.",
-                "Hladnoća se ne povlači narednih dana - stabilnih, ali oskudnih ${MIN}°C do ${MAX}°C."
-            ],
-            "3dana_oblacno": [
-                "Naredna 3 dana ostaju stabilna, ali sivo oblačna - sunce se ne najavljuje, temperature od ${MIN}°C do ${MAX}°C.",
-                "Oblaci drže grad pod kontrolom narednih 71 sat - stabilno, sivo, ${MIN}°C do ${MAX}°C.",
-                "Tri siva dana su pred nama, bez kiše, ali i bez sunca: ${MIN}°C do ${MAX}°C.",
-                "Nebo ostaje zatvoreno naredna 3 dana - temperature stabilne, od ${MIN}°C do ${MAX}°C.",
-                "Sunčane naočale mogu ostati u ladici naredna 3 dana - oblačno i stabilno, ${MIN}°C do ${MAX}°C."
-            ],
-            "3dana_stabilno": [
-                "Naredna 3 dana ostaju stabilna, bez pravih iznenađenja - samo klasična razlika dan/noć: oko ${MIN}°C noću, a i do ${MAX}°C danju.",
-                "Mirno i predvidivo narednih 71 sat - noćnih ${MIN}°C, dnevnih do ${MAX}°C.",
-                "Tri mirna dana su pred nama, uz uobičajenu razliku dan/noć: ${MIN}°C do ${MAX}°C.",
-                "Vrijeme drži riječ naredna 3 dana - stabilno, od ${MIN}°C noću do ${MAX}°C danju.",
-                "Nikakve drame na vidiku narednih 71 sat - samo ${MIN}°C noću i ugodnih do ${MAX}°C danju."
-            ]
-        };
 
         function izracunajMinutuPrelaza(preth, tren, tip) {
             if (!preth) return 0;
@@ -1899,9 +1334,14 @@
                     return 0;
                 }
             } else if (tip === 'vjetar') {
-                const vP = preth.vjetar, vC = tren.vjetar;
-                if (vP < 35 && vC >= 35) {
-                    frak = (35 - vP) / Math.max(1, vC - vP);
+                const uP = preth.udari || preth.vjetar || 0;
+                const uC = tren.udari || tren.vjetar || 0;
+                const vP = preth.vjetar || 0;
+                const vC = tren.vjetar || 0;
+                if (uP < 48 && uC >= 48) {
+                    frak = (48 - uP) / Math.max(1, uC - uP);
+                } else if (vP < 30 && vC >= 30) {
+                    frak = (30 - vP) / Math.max(1, vC - vP);
                 } else {
                     return 0;
                 }
@@ -1913,8 +1353,6 @@
                     return 0;
                 }
             } else {
-                // Za grmljavinu, nevrijeme, kišu, snijeg, poledicu i maglu:
-                // procjenjujemo minutu ulaska fronta na osnovu porasta naoblake i šanse za padavine
                 const popP = preth.pop || 0, popC = tren.pop || 0;
                 const oblP = preth.oblacnost || 0, oblC = tren.oblacnost || 0;
                 if (popC > popP + 5) {
@@ -1931,57 +1369,67 @@
             return Math.min(50, Math.max(0, zaokruzeno10));
         }
 
-        function klasifikujUpozorenjeZaSat(u) {
+        // NADOGRADNJA: Funkcija sada vraća NIZ svih aktivnih upozorenja u tom satu!
+        // Time rješavamo problem u kojem je slaba kiša (0.2mm) blokirala prikaz olujnog vjetra.
+        function klasifikujUpozorenjaZaSat(u) {
             const code = u.code;
             const temp = u.temp;
             const pop = u.pop;
             const mm = u.mm;
             const vjetar = u.vjetar;
+            const udari = u.udari || 0;
             const obl = u.oblacnost;
             const uv = u.uv;
 
-            // 1. Nevrijeme (grmljavina s gradom, olujno grmljavinsko nevrijeme ili olujni vjetar uz jake padavine)
-            if (code >= 96 || (code === 95 && (vjetar >= 35 || mm >= 3.5)) || (vjetar >= 52 && (mm >= 2.0 || code >= 61))) {
-                return { kljuc: 'nevrijeme', tipPrelaza: 'padavine', naziv: 'Nevrijeme', boja: '#dc2626', prioritet: 1 };
-            }
-            // 2. Grmljavina
-            if (code === 95) {
-                return { kljuc: 'grmljavina', tipPrelaza: 'padavine', naziv: 'Grmljavina', boja: '#f59e0b', prioritet: 2 };
-            }
-            // 3. Poledica / ledena kiša
-            if (code === 56 || code === 57 || code === 66 || code === 67 || (temp <= 0 && (mm >= 0.2 || pop >= 55) && !jeSnijeg(code))) {
-                return { kljuc: 'poledica', tipPrelaza: 'padavine', naziv: 'Ledena kiša / poledica', boja: '#ef4444', prioritet: 3 };
-            }
-            // 4. Snijeg
-            if (jeSnijeg(code)) {
+            const lista = [];
+
+            // A) Grupa padavina i olujnih nepogoda
+            if (code >= 96 || (code === 95 && (vjetar >= 35 || udari >= 60 || mm >= 3.5)) || ((vjetar >= 50 || udari >= 75) && (mm >= 2.5 || code >= 63))) {
+                lista.push({ kljuc: 'nevrijeme', tipPrelaza: 'padavine', naziv: 'Nevrijeme', boja: '#dc2626', prioritet: 1 });
+            } else if (code === 95) {
+                lista.push({ kljuc: 'grmljavina', tipPrelaza: 'padavine', naziv: 'Grmljavina', boja: '#f59e0b', prioritet: 2 });
+            } else if (code === 56 || code === 57 || code === 66 || code === 67 || (temp <= 0 && (mm >= 0.2 || pop >= 55) && !jeSnijeg(code))) {
+                lista.push({ kljuc: 'poledica', tipPrelaza: 'padavine', naziv: 'Ledena kiša / poledica', boja: '#ef4444', prioritet: 3 });
+            } else if (jeSnijeg(code)) {
                 const jak = code === 75 || code === 86 || mm >= 2.5;
-                return { kljuc: 'snijeg', tipPrelaza: 'padavine', naziv: jak ? 'Jak snijeg' : 'Snijeg', boja: '#06b6d4', prioritet: 4 };
-            }
-            // 5. Kiša / pljusak
-            if ((code >= 80 && code <= 82) || (code >= 51 && code <= 65) || (pop >= 55 && obl >= 35) || mm >= 0.25) {
+                lista.push({ kljuc: 'snijeg', tipPrelaza: 'padavine', naziv: jak ? 'Jak snijeg' : 'Snijeg', boja: '#06b6d4', prioritet: 4 });
+            } else if ((code >= 80 && code <= 82) || (code >= 51 && code <= 65) || (pop >= 55 && obl >= 35) || mm >= 0.25) {
                 let nazivKise = 'Kiša';
                 if (code >= 81 || mm >= 3.5) nazivKise = 'Jak pljusak';
                 else if (code === 80 || mm >= 1.5) nazivKise = 'Pljusak';
                 else if (code >= 51 && code <= 55 && mm < 0.3 && pop < 65) nazivKise = 'Slaba kiša';
-                return { kljuc: 'kisa', tipPrelaza: 'padavine', naziv: nazivKise, boja: '#2563eb', prioritet: 5 };
+                lista.push({ kljuc: 'kisa', tipPrelaza: 'padavine', naziv: nazivKise, boja: '#2563eb', prioritet: 6 });
             }
-            // 6. Olujni ili jak vjetar
-            if (vjetar >= 35) {
-                return { kljuc: 'vjetar', tipPrelaza: 'vjetar', naziv: vjetar >= 50 ? 'Olujni vjetar' : 'Jak vjetar', boja: '#8b5cf6', prioritet: 6 };
+
+            // B) Nezavisna provjera za jak i olujni vjetar (prema prosječnoj brzini ILI udarima vjetra)
+            // Pragovi usklađeni sa FHMZ / MeteoAlarm standardom (žuti alarm od ~48 km/h udara, narandžasti/olujni od ~65 km/h udara)
+            if (vjetar >= 30 || udari >= 48) {
+                const jeOlujni = vjetar >= 45 || udari >= 65;
+                const maxUdarZaPrikaz = Math.round(Math.max(udari, vjetar * 1.35));
+                const bazniNaziv = jeOlujni ? 'Olujni vjetar' : 'Jak vjetar';
+                lista.push({
+                    kljuc: 'vjetar',
+                    tipPrelaza: 'vjetar',
+                    naziv: `${bazniNaziv} (udari ${maxUdarZaPrikaz} km/h)`,
+                    maxUdar: maxUdarZaPrikaz,
+                    jeOlujni: jeOlujni,
+                    boja: jeOlujni ? '#dc2626' : '#f59e0b',
+                    prioritet: jeOlujni ? 2 : 5
+                });
             }
-            // 7. Mraz
+
+            // C) Ostale pojave (mraz, magla, ekstremna vrućina)
             if (temp <= 2) {
-                return { kljuc: 'mraz', tipPrelaza: 'mraz', naziv: temp <= -3 ? 'Jak mraz' : 'Mraz', boja: '#38bdf8', prioritet: 7 };
+                lista.push({ kljuc: 'mraz', tipPrelaza: 'mraz', naziv: temp <= -3 ? 'Jak mraz' : 'Mraz', boja: '#38bdf8', prioritet: 7 });
             }
-            // 8. Magla
             if (code === 45 || code === 48) {
-                return { kljuc: 'magla', tipPrelaza: 'padavine', naziv: code === 48 ? 'Ledena magla' : 'Magla', boja: '#64748b', prioritet: 8 };
+                lista.push({ kljuc: 'magla', tipPrelaza: 'padavine', naziv: code === 48 ? 'Ledena magla' : 'Magla', boja: '#64748b', prioritet: 8 });
             }
-            // 9. Ekstremna vrućina ili visok UV
             if (temp >= 34 || uv >= 8) {
-                return { kljuc: 'vrucina', tipPrelaza: 'vrucina', naziv: temp >= 34 ? 'Velika vrućina' : 'Visok UV indeks', boja: '#f97316', prioritet: 9 };
+                lista.push({ kljuc: 'vrucina', tipPrelaza: 'vrucina', naziv: temp >= 34 ? 'Velika vrućina' : 'Visok UV indeks', boja: '#f97316', prioritet: 9 });
             }
-            return null;
+
+            return lista;
         }
 
         function generisiKombinovaniIzvjestajZaSat(fokusIndex) {
@@ -2012,6 +1460,7 @@
                 const pop = prosjekVrijednosti(hourly, "precipitation_probability", gi);
                 const mm = prosjekVrijednosti(hourly, "precipitation", gi);
                 const vjetar = prosjekVrijednosti(hourly, "wind_speed_10m", gi);
+                const udari = maksimalniUdariVjetra(hourly, gi);
                 const obl = prosjekVrijednosti(hourly, "cloud_cover", gi);
                 const uv = prosjekVrijednosti(hourly, "uv_index", gi);
                 const code = konsenzusKodVremena(hourly, gi);
@@ -2022,35 +1471,58 @@
                     pop: pop !== null ? pop : 0,
                     mm: mm !== null ? mm : 0,
                     vjetar: vjetar !== null ? vjetar : 0,
+                    udari: udari !== null ? udari : 0,
                     oblacnost: obl !== null ? obl : proceniOblacnostIzKoda(code),
                     uv: uv !== null ? uv : 0,
                     code
                 });
             }
 
-            // Grupisanje uzastopnih sati istog tipa pojave u minimalističke događaje
+            // NADOGRADNJA: Pratimo odvojene blokove za svaki tip pojave istovremeno
+            // (tako da vjetar i kiša mogu teći paralelno u istom satu bez gašenja jednog drugim)
             const dogadjaji = [];
-            let aktivniBlok = null;
+            const aktivniBlokovi = {};
 
             for (let i = 0; i < uzorci48.length; i++) {
                 const u = uzorci48[i];
                 if (u.gi < startGi) continue;
 
                 const preth = i > 0 ? uzorci48[i - 1] : null;
-                const stanje = klasifikujUpozorenjeZaSat(u);
+                const prethStanja = preth ? klasifikujUpozorenjaZaSat(preth) : [];
+                const stanjaSada = klasifikujUpozorenjaZaSat(u);
+                const aktivniKljuceviSada = new Set(stanjaSada.map(s => s.kljuc));
 
-                if (stanje) {
-                    if (aktivniBlok && aktivniBlok.kljuc === stanje.kljuc) {
-                        aktivniBlok.trajanjeSati++;
-                        if (stanje.prioritet < aktivniBlok.prioritet || stanje.naziv.startsWith('Jak')) {
-                            aktivniBlok.naziv = stanje.naziv;
-                            aktivniBlok.boja = stanje.boja;
+                // Zatvori blokove koji više nisu aktivni u ovom satu
+                for (const kljuc of Object.keys(aktivniBlokovi)) {
+                    if (!aktivniKljuceviSada.has(kljuc)) {
+                        dogadjaji.push(aktivniBlokovi[kljuc]);
+                        delete aktivniBlokovi[kljuc];
+                    }
+                }
+
+                // Ažuriraj postojeće ili otvori nove blokove
+                for (const stanje of stanjaSada) {
+                    const kljuc = stanje.kljuc;
+                    if (aktivniBlokovi[kljuc]) {
+                        const blok = aktivniBlokovi[kljuc];
+                        blok.trajanjeSati++;
+                        if (kljuc === 'vjetar') {
+                            if ((stanje.maxUdar || 0) > (blok.maxUdar || 0)) {
+                                blok.maxUdar = stanje.maxUdar;
+                                blok.jeOlujni = blok.jeOlujni || stanje.jeOlujni;
+                                const bNaziv = blok.jeOlujni ? 'Olujni vjetar' : 'Jak vjetar';
+                                blok.naziv = `${bNaziv} (udari ${blok.maxUdar} km/h)`;
+                                blok.boja = blok.jeOlujni ? '#dc2626' : '#f59e0b';
+                                blok.prioritet = blok.jeOlujni ? 2 : 5;
+                            }
+                        } else if (stanje.prioritet < blok.prioritet || stanje.naziv.startsWith('Jak')) {
+                            blok.naziv = stanje.naziv;
+                            blok.boja = stanje.boja;
+                            blok.prioritet = stanje.prioritet;
                         }
                     } else {
-                        if (aktivniBlok) dogadjaji.push(aktivniBlok);
                         const jeOdmahNaStartu = (u.gi === startGi);
-                        const prethStanje = preth ? klasifikujUpozorenjeZaSat(preth) : null;
-                        const vecTrajalo = prethStanje && prethStanje.kljuc === stanje.kljuc;
+                        const vecTrajalo = prethStanja.some(ps => ps.kljuc === kljuc);
 
                         let minPrelaza = 0;
                         if (jeOdmahNaStartu && vecTrajalo && fokusIndex === pocetniSadaIndex && u.datum === danasStr) {
@@ -2059,28 +1531,32 @@
                             minPrelaza = izracunajMinutuPrelaza(preth, u, stanje.tipPrelaza);
                         }
 
-                        aktivniBlok = {
+                        aktivniBlokovi[kljuc] = {
                             kljuc: stanje.kljuc,
                             naziv: stanje.naziv,
                             boja: stanje.boja,
                             prioritet: stanje.prioritet,
+                            maxUdar: stanje.maxUdar || 0,
+                            jeOlujni: stanje.jeOlujni || false,
                             datum: u.datum,
                             satNum: u.satNum,
                             minNum: minPrelaza,
+                            sortVrijeme: u.t.getTime() + minPrelaza * 60000,
                             trajanjeSati: 1,
                             jeOdmahNaStartu: jeOdmahNaStartu
                         };
                     }
-                } else {
-                    if (aktivniBlok) {
-                        dogadjaji.push(aktivniBlok);
-                        aktivniBlok = null;
-                    }
                 }
             }
-            if (aktivniBlok) dogadjaji.push(aktivniBlok);
 
-            // Zadržavamo prvo pojavljivanje svakog tipa pojave (do 3 najvažnije nadolazeće pojave)
+            for (const kljuc of Object.keys(aktivniBlokovi)) {
+                dogadjaji.push(aktivniBlokovi[kljuc]);
+            }
+
+            // Sortiramo hronološki, a ako počinju u isto vrijeme, prednost ima viši prioritet (npr. vjetar/nevrijeme)
+            dogadjaji.sort((a, b) => (a.sortVrijeme - b.sortVrijeme) || (a.prioritet - b.prioritet));
+
+            // Zadržavamo prvo pojavljivanje svakog tipa pojave (do 4 najvažnije nadolazeće pojave)
             const prikazaniKljucevi = new Set();
             const odabraniDogadjaji = [];
             for (const d of dogadjaji) {
@@ -2088,7 +1564,7 @@
                     prikazaniKljucevi.add(d.kljuc);
                     odabraniDogadjaji.push(d);
                 }
-                if (odabraniDogadjaji.length >= 3) break;
+                if (odabraniDogadjaji.length >= 4) break;
             }
 
             if (alertBoxEl && alertTextEl) {
@@ -2136,18 +1612,11 @@
                     alertBoxEl.style.display = 'block';
                 }
             }
-
-            /* ZAKOMENTARISAN ŠALJIVI METEO IZVJEŠTAJ:
-            const summaryEl = document.getElementById('combined-summary-text');
-            const dioDanaTekst = uzmiPametnuRecenicu("dan_mirno", trenutniPodatak.temp);
-            if (summaryEl) summaryEl.innerText = dioDanaTekst;
-            */
         }
 
         let brojacSvgIkona = 0;
 
         function odrediVarijantuIkone(code, jeMrak, mm = 0) {
-            // Fino razlikovanje svih WMO kodova + intenziteta padavina (slaba / srednja / jaka kiša, pljusak, snijeg, rosulja, nevrijeme)
             if (code === 0) return jeMrak ? 'vedro_noc' : 'vedro_dan';
             if (code === 1) return jeMrak ? 'malo_oblacno_noc' : 'malo_oblacno_dan';
             if (code === 2) return jeMrak ? 'umjereno_oblacno_noc' : 'umjereno_oblacno_dan';
@@ -2155,37 +1624,31 @@
             if (code === 45) return 'magla';
             if (code === 48) return 'ledena_magla';
 
-            // Rosulja (51 = slaba, 53 = srednja, 55 = jaka)
             if (code === 51) return 'rosulja_slaba';
             if (code === 53) return 'rosulja_srednja';
             if (code === 55) return 'rosulja_jaka';
 
-            // Ledena rosulja i ledena kiša (56, 66 = slaba; 57, 67 = jaka)
             if (code === 56 || code === 66) return 'ledena_kisa_slaba';
             if (code === 57 || code === 67) return 'ledena_kisa_jaka';
 
-            // Kiša (61 = slaba, 63 = srednja, 65 = jaka) uz korekciju prema stvarnim mm/h
             if (code >= 61 && code <= 65) {
                 if (code === 65 || mm >= 3.5) return 'kisa_jaka';
                 if (code === 63 || mm >= 1.2) return 'kisa_srednja';
                 return 'kisa_slaba';
             }
 
-            // Pljuskovi (80 = slab, 81 = srednji, 82 = jak/olujni)
             if (code >= 80 && code <= 82) {
                 if (code === 82 || mm >= 4.0) return jeMrak ? 'pljusak_jak_noc' : 'pljusak_jak_dan';
                 if (code === 81 || mm >= 1.5) return jeMrak ? 'pljusak_srednji_noc' : 'pljusak_srednji_dan';
                 return jeMrak ? 'pljusak_slab_noc' : 'pljusak_slab_dan';
             }
 
-            // Snijeg (71, 85 = slab; 73, 77 = srednji; 75, 86 = jak/mećava)
             if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
                 if (code === 75 || code === 86 || mm >= 2.5) return 'snijeg_jak';
                 if (code === 73 || code === 77 || mm >= 1.0) return 'snijeg_srednji';
                 return 'snijeg_slab';
             }
 
-            // Grmljavina i olujno nevrijeme s gradom (95 vs 96/99)
             if (code === 95) return mm >= 4.0 ? 'nevrijeme_jako' : 'grmljavina';
             if (code >= 96) return 'nevrijeme_grad';
 
@@ -2238,7 +1701,6 @@
                 </defs>
             `;
 
-            // Pomoćni gradivni blokovi u 64x64 koordinatnom sistemu
             const crtajSunce = (cx, cy, r) => {
                 let zrake = '';
                 for (let a = 0; a < 360; a += 45) {
@@ -2500,11 +1962,6 @@
             return `<svg class="wx-hero-svg" width="${velicina}" height="${velicina}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">${unutrasnjost}</svg>`;
         }
 
-        function dajIkonuZaGrafikon(code, jeMrak) {
-            if (jeMrak && (code === 0 || code === 1 || code === 2)) return "🌙";
-            return dajIkonuVremena(code);
-        }
-
         function proceniOblacnostIzKoda(code) {
             if (code === 0) return 5;
             if (code === 1) return 25;
@@ -2613,6 +2070,7 @@
                     const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
                     const mm = prosjekVrijednosti(hourly, "precipitation", gi);
                     const vjetar = prosjekVrijednosti(hourly, "wind_speed_10m", gi);
+                    const udari = maksimalniUdariVjetra(hourly, gi);
                     const smjer = prosjekSmjeraVjetra(hourly, gi);
                     const pritisak = prosjekVrijednosti(hourly, "pressure_msl", gi);
                     const code = konsenzusKodVremena(hourly, gi);
@@ -2627,6 +2085,7 @@
                             oblacnost: oblacnost !== null ? Math.min(100, Math.max(0, oblacnost)) : proceniOblacnostIzKoda(code),
                             mm: mm !== null ? Math.max(0, mm) : 0,
                             vjetar: vjetar !== null ? Math.round(vjetar) : 0,
+                            udari: udari !== null ? Math.round(udari) : 0,
                             smjer: smjer !== null ? smjer : 0,
                             pritisak: pritisak !== null ? pritisak : 1015,
                             code
@@ -2923,7 +2382,6 @@
                     satTxt.textContent = `${sat}`;
                     grupa.appendChild(satTxt);
 
-                    // Super napredna vektorska SVG ikona u grafikonu (razlikuje slabu, srednju, jaku kišu, pljuskove, snijeg, grmljavinu...)
                     const jeMrakSat = sunInfoD ? (u.t < sunInfoD.sunrise || u.t > sunInfoD.sunset) : (sat < 6 || sat >= 20);
                     brojacSvgIkona++;
                     const ikonaGrupa = document.createElementNS(ns, 'g');
@@ -2953,14 +2411,14 @@
                     feelsTxt.textContent = `${Math.round(u.feels)}°`;
                     grupa.appendChild(feelsTxt);
 
-                    if (u.vjetar >= 12) {
+                    if (u.vjetar >= 12 || u.udari >= 40) {
                         const vjetarBg = document.createElementNS(ns, 'rect');
                         vjetarBg.setAttribute('x', (u.x - 16).toFixed(1));
                         vjetarBg.setAttribute('y', (Y_TEMP_BAZA + 1).toFixed(1));
                         vjetarBg.setAttribute('width', '32');
                         vjetarBg.setAttribute('height', (Y_VJETAR_DNO - Y_TEMP_BAZA - 2).toFixed(1));
-                        vjetarBg.setAttribute('fill', '#38bdf8');
-                        vjetarBg.setAttribute('opacity', jeTamniMod ? '0.18' : '0.16');
+                        vjetarBg.setAttribute('fill', u.udari >= 48 ? '#f59e0b' : '#38bdf8');
+                        vjetarBg.setAttribute('opacity', jeTamniMod ? '0.22' : '0.18');
                         grupa.appendChild(vjetarBg);
                     }
 
@@ -2985,14 +2443,15 @@
                     vjBrzina.textContent = `${u.vjetar}`;
                     grupa.appendChild(vjBrzina);
 
+                    // NADOGRADNJA: Prikaz stvarnih udara vjetra iz API-ja umjesto matematičke procjene
                     const vjUdari = document.createElementNS(ns, 'text');
                     vjUdari.setAttribute('x', u.x.toFixed(1));
                     vjUdari.setAttribute('y', '148');
                     vjUdari.setAttribute('text-anchor', 'middle');
                     vjUdari.setAttribute('font-size', '8');
-                    vjUdari.setAttribute('font-weight', '600');
-                    vjUdari.setAttribute('fill', bojaTekstSporedni);
-                    vjUdari.textContent = `${Math.round(u.vjetar * 1.45 + 2)}`;
+                    vjUdari.setAttribute('font-weight', u.udari >= 48 ? '800' : '600');
+                    vjUdari.setAttribute('fill', u.udari >= 65 ? '#ef4444' : (u.udari >= 48 ? '#f59e0b' : bojaTekstSporedni));
+                    vjUdari.textContent = `${Math.max(u.vjetar, u.udari)}`;
                     grupa.appendChild(vjUdari);
                 });
             }
@@ -3240,7 +2699,6 @@
                 return `rgb(${tacke[tacke.length - 1].boja.join(',')})`;
             };
 
-            // Čista kontrastna podloga
             ctx.fillStyle = '#f8fafc';
             ctx.fillRect(0, 0, W, H);
 
@@ -3256,7 +2714,6 @@
             };
             const nazivModela = mapaImenaModela[odabraniModel] || odabraniModel;
 
-            // Gornje tamno zaglavlje sa jakim kontrastom
             const hdrGrad = ctx.createLinearGradient(0, 0, W, 0);
             hdrGrad.addColorStop(0, '#0f172a');
             hdrGrad.addColorStop(0.5, '#1e3a8a');
@@ -3298,6 +2755,7 @@
                     const oblacnost = prosjekVrijednosti(hourly, "cloud_cover", gi);
                     const mm = prosjekVrijednosti(hourly, "precipitation", gi);
                     const vjetar = prosjekVrijednosti(hourly, "wind_speed_10m", gi);
+                    const udari = maksimalniUdariVjetra(hourly, gi);
                     const smjer = prosjekSmjeraVjetra(hourly, gi);
                     const pritisak = prosjekVrijednosti(hourly, "pressure_msl", gi);
                     const code = konsenzusKodVremena(hourly, gi);
@@ -3312,6 +2770,7 @@
                             oblacnost: oblacnost !== null ? Math.min(100, Math.max(0, oblacnost)) : proceniOblacnostIzKoda(code),
                             mm: mm !== null ? Math.max(0, mm) : 0,
                             vjetar: vjetar !== null ? vjetar : 0,
+                            udari: udari !== null ? udari : 0,
                             smjer: smjer !== null ? smjer : 0,
                             pritisak: pritisak !== null ? pritisak : 1015,
                             code
@@ -3321,7 +2780,6 @@
             }
             if (uzorci.length < 2) return canvas;
 
-            // Bijela unutrašnjost panela
             [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(L, yT, plotW, yB - yT);
@@ -3335,7 +2793,6 @@
                 const krajD = parsirajApiVrijeme(`${datumD}T23:59`);
                 const xU = (t) => xDanStart + Math.min(1, Math.max(0, (t - pocetakD) / (krajD - pocetakD))) * danW;
 
-                // Jaka tamnoplava traka za naziv dana + kontrastna svijetloplava traka za sate
                 ctx.fillStyle = d % 2 === 0 ? '#1e3a8a' : '#172554';
                 ctx.fillRect(xDanStart, HDR_TOP, danW, 26);
                 ctx.fillStyle = d % 2 === 0 ? '#dbeafe' : '#bfdbfe';
@@ -3356,7 +2813,6 @@
                     ctx.fillText(`${String(h).padStart(2, '0')}h`, xH, HDR_TOP + 42);
                 });
 
-                // Jasno uočljive noćne zone u svim panelima
                 [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
                     if (sunInfoD) {
                         ctx.fillStyle = 'rgba(30, 41, 59, 0.13)';
@@ -3379,7 +2835,6 @@
                 }
             }
 
-            // Okvir zaglavlja sa danima i satima
             ctx.strokeStyle = '#1e293b';
             ctx.lineWidth = 1.8;
             ctx.strokeRect(L, HDR_TOP, plotW, HDR_BOT - HDR_TOP);
@@ -3424,7 +2879,6 @@
                 ctx.fillText(`${tv}°C`, R + 8, yG + 4);
             }
 
-            // Jaka, zasićena temperaturna ispuna
             for (let i = 0; i < uzorci.length - 1; i++) {
                 const a = uzorci[i], b = uzorci[i + 1];
                 const yA = yTempP1(a.temp), yB = yTempP1(b.temp);
@@ -3440,7 +2894,6 @@
             }
             ctx.globalAlpha = 1.0;
 
-            // Subjektivni osjećaj (jasna tamnoplava/indigo isprekidana linija)
             ctx.strokeStyle = '#312e81';
             ctx.lineWidth = 2.4;
             ctx.setLineDash([6, 4]);
@@ -3453,7 +2906,6 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Glavna temperaturna kriva (bijela podloga + jaka crvena linija)
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 6.5;
             ctx.beginPath();
@@ -3474,7 +2926,6 @@
             });
             ctx.stroke();
 
-            // Traka na vrhu Panela 1 za ikone vremena
             ctx.fillStyle = 'rgba(241, 245, 249, 0.9)';
             ctx.fillRect(L, P1_TOP, plotW, 38);
             ctx.strokeStyle = '#94a3b8';
@@ -3563,7 +3014,6 @@
                 ctx.fill();
             });
 
-            // Šansa za padavine - živopisna plava ispuna sa gornjom konturom
             ctx.fillStyle = 'rgba(14, 165, 233, 0.36)';
             ctx.beginPath();
             ctx.moveTo(uzorci[0].x, P2_BOT);
@@ -3585,7 +3035,6 @@
             });
             ctx.stroke();
 
-            // 1. prolaz: crtamo sve stubiće padavina u jakim bojama
             const korakX = plotW / Math.max(1, uzorci.length);
             uzorci.forEach((u) => {
                 u.hBar = 0;
@@ -3604,7 +3053,6 @@
                 }
             });
 
-            // 2. prolaz: ispisujemo vrijednosti mm iznad najvišeg okolnog stubića
             ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
             let zadnjiMmIdx = -10;
@@ -3632,9 +3080,9 @@
             ctx.fillStyle = '#0f172a';
             ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('VJETAR (km/h i smjer) & PRITISAK (hPa)', L + 12, P3_TOP - 10);
+            ctx.fillText('VJETAR (km/h, udari i smjer) & PRITISAK (hPa)', L + 12, P3_TOP - 10);
 
-            const maxVj = Math.max(30, Math.ceil(Math.max(...uzorci.map(u => u.vjetar)) / 10) * 10);
+            const maxVj = Math.max(30, Math.ceil(Math.max(...uzorci.map(u => Math.max(u.vjetar, u.udari))) / 10) * 10);
             const minPr = Math.floor(Math.min(...uzorci.map(u => u.pritisak)) - 2);
             const maxPr = Math.ceil(Math.max(...uzorci.map(u => u.pritisak)) + 2);
             const rasponPr = Math.max(8, maxPr - minPr);
@@ -3663,7 +3111,6 @@
                 ctx.fillText(`${pVal} hPa`, R + 8, yG + 4);
             });
 
-            // Jaka tirkizno-zelena ispuna i kriva vjetra
             ctx.fillStyle = 'rgba(13, 148, 136, 0.45)';
             ctx.beginPath();
             ctx.moveTo(uzorci[0].x, P3_BOT);
@@ -3681,7 +3128,19 @@
             });
             ctx.stroke();
 
-            // Jaka ljubičasta linija pritiska sa bijelom podlogom
+            // NADOGRADNJA: Narandžasta isprekidana kriva za udare vjetra na 5-dnevnoj slici
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            uzorci.forEach((u, i) => {
+                const yUd = yVjP3(Math.max(u.vjetar, u.udari));
+                if (i === 0) ctx.moveTo(u.x, yUd);
+                else ctx.lineTo(u.x, yUd);
+            });
+            ctx.stroke();
+            ctx.setLineDash([]);
+
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 5;
             ctx.beginPath();
@@ -3700,7 +3159,6 @@
             });
             ctx.stroke();
 
-            // Gornja traka za strelice smjera vjetra u Panelu 3
             ctx.fillStyle = 'rgba(241, 245, 249, 0.9)';
             ctx.fillRect(L, P3_TOP, plotW, 28);
             ctx.strokeStyle = '#94a3b8';
@@ -3732,7 +3190,6 @@
                 });
             }
 
-            // Čvrsti okviri panela i vertikalni razdjelnici dana
             ctx.strokeStyle = '#1e293b';
             ctx.lineWidth = 1.8;
             [[P1_TOP, P1_BOT], [P2_TOP, P2_BOT], [P3_TOP, P3_BOT]].forEach(([yT, yB]) => {
@@ -3749,7 +3206,7 @@
             ctx.fillStyle = '#0f172a';
             ctx.font = 'bold 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('Legenda: Crvena linija = Temperatura (°C) | Indigo isprekidana = Subjektivni osjećaj | Tamnosivi slojevi = Oblaci (%) | Kraljevsko plavi stubići = Padavine (mm) | Tirkizno = Vjetar (km/h) | Ljubičasta = Pritisak (hPa)', L, H - 22);
+            ctx.fillText('Legenda: Crvena = Temperatura (°C) | Indigo isprekidana = Osjećaj | Sivo = Oblaci (%) | Plavi stubići = Padavine (mm) | Tirkizno = Vjetar | Narandžasta isprekidana = Udari vjetra | Ljubičasta = Pritisak', L, H - 22);
 
             return canvas;
         }
@@ -3822,7 +3279,6 @@
             const jeTamniMod = document.body.classList.contains('dark-mode');
 
             if (prikaziPunuLiniju) {
-                // Aktivno držanje/skrolanje sata: samo vertikalna linija, traka fokusa i tačka na krivoj (bez plavog gumba na vrhu)
                 const traka = document.createElementNS(ns, 'rect');
                 traka.setAttribute('x', (x - 8).toFixed(1));
                 traka.setAttribute('y', '22');
@@ -3858,7 +3314,6 @@
                 krug.setAttribute('stroke-width', '2');
                 indGrupa.appendChild(krug);
             } else if (idx !== pocetniSadaIndex) {
-                // Diskretan trag nakon puštanja prsta/miša kada je odabran sat različit od "sada"
                 const xSigurno = Math.min(ukupnaSirina - 6, Math.max(6, x));
                 const tragLinija = document.createElementNS(ns, 'line');
                 tragLinija.setAttribute('x1', xSigurno.toFixed(1));
@@ -3920,8 +3375,6 @@
                 : parsirajApiVrijeme(item.fullIso);
 
             if (trenutak >= sunInfo.sunrise && trenutak <= sunInfo.sunset) {
-                const frakcija = (trenutak - sunInfo.sunrise) / (sunInfo.sunset - sunInfo.sunrise);
-                const posto = Math.round(frakcija * 100);
                 const doZalaska = formatTrajanje(sunInfo.sunset - trenutak);
                 statusEl.innerText = `☀️ Zalazak za ${doZalaska}`;
             } else {
@@ -3952,7 +3405,6 @@
         }
 
         function izgradiRollerSati() {
-            // Zadržana funkcija radi kompatibilnosti; inicijalni prikaz je na grafikonu.
         }
 
         function skrolujGrafikonPremaIndexu(idx, glatko = false) {
@@ -4022,7 +3474,6 @@
                 const resetBtn = document.getElementById('btn-reset-now');
                 const [gN, mN, dN] = podatak.datum.split('-').map(Number);
                 const dt = new Date(gN, mN - 1, dN);
-                const nazivDana = NAZIVI_DANA_BS[dt.getDay()];
                 const jeSada = (idx === pocetniSadaIndex);
                 if (titleEl) {
                     const kratkiDan = KRATKI_DANI_BS[dt.getDay()];
@@ -4067,12 +3518,12 @@
                 document.getElementById('wind-val').innerText = `${podatak.vjetar} km/h`;
                 const windArrow = document.getElementById('wind-arrow');
                 const smjerDeg = podatak.smjerVjetra || 0;
-                // FIX: wind_direction_10m je smjer ODAKLE vjetar duva (meteorološka konvencija).
-                // Strelica sada pokazuje KUDA vjetar duva (smjer + 180°), dok tekst pored nje
-                // (npr. "(N)") i dalje govori odakle dolazi - tako se strelica čita kao strelica
-                // strujanja vazduha, a ne kao kazaljka ka izvoru (isti pristup kao na Windy/Yr.no).
                 windArrow.style.transform = `rotate(${(smjerDeg + 180) % 360}deg)`;
-                document.getElementById('wind-dir').innerText = `(${stepeniUSmjer(smjerDeg)})`;
+                // Prikaz smjera + udara vjetra u kartici ako su udari izraženi
+                const udarTekst = (podatak.udariVjetra && podatak.udariVjetra >= podatak.vjetar + 10)
+                    ? `(${stepeniUSmjer(smjerDeg)} • udari ${podatak.udariVjetra} km/h)`
+                    : `(${stepeniUSmjer(smjerDeg)})`;
+                document.getElementById('wind-dir').innerText = udarTekst;
 
                 document.getElementById('pressure-val').innerText = `${podatak.pritisak} hPa`;
                 const pressureArrow = document.getElementById('pressure-arrow');
@@ -4105,9 +3556,6 @@
                         const imeLokacije = `${latF}, ${lonF}`;
                         const select = document.getElementById('city-select');
 
-                        // FIX: ukloni prethodno dodane GPS unose (📍) prije dodavanja
-                        // novog, da se dropdown ne puni duplikatima pri ponovljenim
-                        // klikovima na dugme za lokaciju.
                         Array.from(select.querySelectorAll('option[data-gps="1"]')).forEach(opt => opt.remove());
 
                         const newOpt = document.createElement('option');
@@ -4143,9 +3591,6 @@
             const svgEl = document.getElementById('sun-path-svg');
             if (!wrapper || !svgEl) return;
 
-            // Vrijeme zadržavanja prsta (350 ms) — optimalan balans:
-            // dovoljno kratko da ne čekate punu sekundu, a dovoljno dugo da
-            // obično prevlačenje prstom nesmetano skrola kroz 5 dana bez slučajnog paljenja linije.
             const VRIJEME_CUVANJA_TOUCH_MS = 350;
             const VRIJEME_CUVANJA_MIS_MS = 200;
 
@@ -4207,10 +3652,6 @@
                 }
             };
 
-            // 1. MOBILNI UREĐAJI (Touch):
-            // - Brzi pokret prstom lijevo/desno -> slobodno skrola dane (5 dana).
-            // - Zadržavanje prsta ~0.35s u mjestu -> pali vertikalnu liniju i omogućava precizno skrolanje sata s lijeva na desno.
-            // - Puštanje prsta -> vertikalna linija nestaje i ostavlja diskretan trag na odabranom satu.
             wrapper.addEventListener('touchstart', (e) => {
                 if (!e.touches || e.touches.length !== 1) return;
                 const touch = e.touches[0];
@@ -4232,11 +3673,9 @@
                 const dy = Math.abs(touch.clientY - startY);
 
                 if (rezimSkrolanjaSata) {
-                    // Dok je vertikalna linija aktivna, sprječavamo skrolanje stranice/kontejnera i precizno pomjeramo sat
                     if (e.cancelable) e.preventDefault();
                     azurirajSatPriPovlacenju(touch.clientX);
                 } else if (dx > 8 || dy > 8) {
-                    // Korisnik je odmah krenuo skrolati dane - otkazujemo tajmer čuvanja da se dani glatko skrolaju
                     clearTimeout(tajmerCuvanja);
                     tajmerCuvanja = null;
                 }
@@ -4250,10 +3689,6 @@
                 deaktivirajVertikalnuLiniju();
             }, { passive: true });
 
-            // 2. PC (Miš):
-            // - Zadržavanje lijevog klika (~0.2s) ili klik u mjestu -> pali vertikalnu liniju za precizno skrolanje sata s lijeva na desno.
-            // - Brzo povlačenje odmah nakon klika -> skrola dane lijevo/desno.
-            // - Puštanje klika -> gasi vertikalnu liniju i ostavlja trag.
             svgEl.addEventListener('mousedown', (e) => {
                 if (e.button !== 0) return;
                 misPritisnut = true;
@@ -4278,7 +3713,6 @@
                 if (rezimSkrolanjaSata) {
                     azurirajSatPriPovlacenju(e.clientX);
                 } else if (Math.abs(dx) > 7) {
-                    // Ako je korisnik odmah povukao mišem prije isteka 0.2s, pomjera prikaz kroz 5 dana
                     clearTimeout(tajmerCuvanja);
                     tajmerCuvanja = null;
                     rezimPomjeranjaDanaMisem = true;
@@ -4297,7 +3731,6 @@
                 }
             });
 
-            // 3. Točkić miša iznad grafikona na PC-u i strelice na tastaturi
             wrapper.addEventListener('wheel', (e) => {
                 if (!prognozaPodaci || prognozaPodaci.length === 0) return;
                 e.preventDefault();
@@ -4322,14 +3755,6 @@
 
         promjeniGrad();
 
-        // FIX: "refresh svaka 3 sata" - aplikacija ranije NIJE imala automatsko
-        // osvježavanje (podaci su ostajali isti dok god korisnik ručno ne promijeni
-        // grad ili ne otvori app iznova) - čak i da izađe novi ICON run (svaka 3h),
-        // prikaz se ne bi sam ažurirao. Sad se svaka 3 sata ponovo poziva
-        // promjeniGrad(true) koji čita TRENUTNO odabranu lokaciju (grad ili GPS - oboje
-        // ažuriraju isti <select>) i povlači svježe podatke za nju - prati frekvenciju
-        // najbržeg od naša tri modela (ICON). "true" znači "sačuvaj poziciju" - tihi
-        // refresh u pozadini neće izbaciti korisnika sa sata koji trenutno gleda.
         setInterval(() => {
             promjeniGrad(true);
         }, 3 * 60 * 60 * 1000);
